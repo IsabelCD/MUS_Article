@@ -10,16 +10,18 @@ DATA_DIR = PROJECT_ROOT / "clean_data"
 DOCS_DIR = PROJECT_ROOT / "docs"
 
 # Configuration of population
-POPULATION_CONFIG  = {
-    "pop_file": "EU_funds",
-    "id": "FSE"
+POPULATION_CONFIGS  = {
+    "BV_pop": ["BV_5pct_above_SI", "BV_15pct_above_SI", "BV_30pct_above_SI"],
+    "f_target": [0.05, 0.20, 0.50],
+    "corr_target": [0.10, 0.25, 0.50],
+    "r_target": [0.002, 0.01, 0.015, 0.025, 0.03, 0.05]
 }
 
 # Configuration for each sampling method
 SIMULATION_SETTINGS = {
-    "sample_sizes": [30, 65, 100],
-    "CL": 0.80,
-    "iterations": 5000,
+    "sample_sizes": [30, 65, 100, 150, 200],
+    "CL": [0.80, 0.90, 0.95],
+    "iterations": 10_000,
     "seed": 120,
     "TE_perc": 0.02,
     "configurations": [
@@ -27,7 +29,19 @@ SIMULATION_SETTINGS = {
             "method": "MUS",
             "hv_selection": "nothing",
             "selection_type": "systematic_sampling",
-            "bound_estimator": "Con",
+            "bound_estimator": "Poisson_Stringer",
+        },
+        {
+            "method": "MUS",
+            "hv_selection": "nothing",
+            "selection_type": "systematic_sampling",
+            "bound_estimator": "Binomial_Stringer",
+        },
+        {
+            "method": "MUS",
+            "hv_selection": "nothing",
+            "selection_type": "systematic_sampling",
+            "bound_estimator": "Moment",
         },
         {
             "method": "MUS",
@@ -40,12 +54,6 @@ SIMULATION_SETTINGS = {
         #     "hv_selection": "iterative",
         #     "selection_type": "systematic_sampling",
         #     "bound_estimator": "Mod_HH",
-        # },
-        # {
-        #     "method": "MRS",
-        #     "hv_selection": "iterative",
-        #     "selection_type": "systematic_sampling",
-        #     "bound_estimator": "HH",
         # },
     ],
     }

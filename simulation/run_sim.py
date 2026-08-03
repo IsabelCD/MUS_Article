@@ -67,8 +67,7 @@ class Simulation:
         #Simulation parameters
         self.population_ID=population_ID
         self.population=population
-        self.CL= simulation_config["CL"]
-        self.z_score = 0.842 #norm.ppf((1 + self.CL) / 2)
+        self.confidence_levels= simulation_config["confidence_levels"]
 
         self.sample_sizes = simulation_config["sample_sizes"]
         self.simulation_configs = simulation_config["configurations"]
@@ -76,7 +75,8 @@ class Simulation:
         #Population characteristics
         self.N = population.shape[0]
         self.EE = population['E'].sum()
-        self.TE = simulation_config["TE_perc"] * population['BV'].sum()
+        self.BV = population['BV'].sum()
+        self.TE = simulation_config["TE_perc"] * self.BV
 
         self.seed = simulation_config["seed"]
         self.iterations = simulation_config["iterations"]
@@ -113,105 +113,86 @@ class Simulation:
             selection = config["selection_type"]
             bound = config["bound_estimator"]
 
-            population_with_q = self.population.copy()
-            population_with_q["Q"] = self._compute_q(population_with_q, method=method,)
-
-            validation_Q_distribution(population_with_q)
-
-            Q_sum = population_with_q["Q"].sum()
-
-            if bound == "HH":
-                if (population_with_q["Q"] <= 0).any():
-                    raise ValueError("HH requires Q to be positive for every unit.")
-                ratio_EQ_std = (population_with_q["E"] / population_with_q["Q"]).std(ddof=1)
-
-            else:
-                ratio_EQ_std = None
+            ratio_EQ_std = (self.population["E"] / self.population["BV"]).std(ddof=1)
 
             for sample_size in self.sample_sizes:
                 print(f"Starting sample size {sample_size}")
                 combo_predictions = []
 
-                for i in tqdm(range(self.iterations)):
-                    random_state = (self.seed + config_idx * self.iterations + i)
+                for cl in self.confidence_levels:
+                    print(f"Starting sample size {cl}")
+                    z_score = norm.ppf((1 + cl) / 2)
 
-                    shuffled_population = shuffle(population_with_q, random_state=random_state)
+                    for i in tqdm(range(self.iterations)):
+                        random_state = (self.seed + config_idx * self.iterations + i)
 
-                    sample = Sample(
-                        population=shuffled_population,
-                        N=self.N,
-                        EE=self.EE,
-                        Q=Q_sum,
-                        sample_size=sample_size,
-                        z_score=self.z_score,
-                        method=method,
-                        hv_selection=hv_selection,
-                        selection_type=selection,
-                        bound_estimator=bound,
-                        random_state=random_state,
-                    ).run()
+                        shuffled_population = shuffle(self.population, random_state=random_state)
 
-                    prediction = {
-                        "iteration": i,
+                        sample = Sample(
+                            population=shuffled_population,
+                            N=self.N,
+                            EE=self.EE,
+                            BV=self.BV,
+                            sample_size=sample_size,
+                            z_score=z_score,
+                            method=method,
+                            hv_selection=hv_selection,
+                            selection_type=selection,
+                            bound_estimator=bound,
+                            random_state=random_state,
+                        ).run()
+
+                        prediction = {
+                            "iteration": i,
+                            "sample_size": sample_size,
+                            "confidence_level": cl,
+                            "method": method,
+                            "hv_selection": hv_selection,
+                            "selection_type": selection,
+                            "bound_estimator": bound,
+                            **sample.get_results(),
+                        }
+
+                        predictions.append(prediction)
+                        combo_predictions.append(prediction)
+
+                    combo_predictions_df = pd.DataFrame.from_records(combo_predictions)
+
+                    validation_NAs(combo_predictions_df)
+
+                    config_info = {
                         "sample_size": sample_size,
-                        "method": method,
+                        "confidence_level": cl,
+                        "z_score": z_score,
                         "hv_selection": hv_selection,
                         "selection_type": selection,
                         "bound_estimator": bound,
-                        **sample.get_results(),
+                        "method": method,
                     }
 
-                    predictions.append(prediction)
-                    combo_predictions.append(prediction)
+                    metrics = self._metrics_for_method(
+                        combo_predictions_df,
+                        config_info,
+                        ratio_EQ_std,
+                    )
 
-                combo_predictions_df = pd.DataFrame.from_records(combo_predictions)
-
-                validation_NAs(combo_predictions_df)
-
-                config_info = {
-                    "sample_size": sample_size,
-                    "hv_selection": hv_selection,
-                    "selection_type": selection,
-                    "bound_estimator": bound,
-                    "method": method,
-                }
-
-                metrics = self._metrics_for_method(
-                    combo_predictions_df,
-                    config_info,
-                    Q_sum,
-                    ratio_EQ_std,
-                )
-
-                all_metrics.append(config_info | metrics)
+                    all_metrics.append(config_info | metrics)
 
         return (
             pd.DataFrame.from_records(predictions),
             pd.DataFrame.from_records(all_metrics),
         )
 
-    
-    # ------------------------------------------------------------------
-    # AUX Functions
-    # ------------------------------------------------------------------
-    def _compute_q(self, population: pd.DataFrame, method: str) -> pd.Series:
-        if method=="MUS":
-            return population["BV"]
-        if method=="MRS":
-            return population['BV']*population['P']
-        
-        raise ValueError(f"Unknown sampling method: {method}")
-
     # ------------------------------------------------------------------
     # Metrics
     # ------------------------------------------------------------------
 
-    def _metrics_for_method(self, it_results: pd.DataFrame, config_info: dict, Q: int, ratio_EQ_std= None) -> dict:
+    def _metrics_for_method(self, it_results: pd.DataFrame, config_info: dict, ratio_EQ_std= None) -> dict:
         """Compute and assemble all metrics for one method ('Con' or 'Stan')."""
-        Bias_EE, SE_true, accuracy_true = self._error_precision_metrics(it_results)
-        Bias_SE, SE_of_SE, accuracy_of_SE = self._precision_of_precision_metrics(it_results, config_info["bound_estimator"], SE_true)
-        coverage, inconclusive, needed_n, formula_n, skew = self._other_metrics(it_results, SE_true, config_info["sample_size"], config_info["bound_estimator"], Q, ratio_EQ_std)
-        BV_true = self.population['BV'].sum()
+        Bias_EE, SE_true, accuracy_true = self._error_precision_metrics(it_results, config_info["z_score"])
+        Bias_SE, SE_of_SE, accuracy_of_SE = self._precision_of_precision_metrics(it_results, config_info["bound_estimator"], SE_true, config_info["z_score"])
+        coverage, inconclusive, rate_of_acceptance, rate_of_rejection,needed_n, formula_n, skew = self._other_metrics(it_results, SE_true, config_info["sample_size"], config_info["bound_estimator"], ratio_EQ_std, config_info["z_score"])
+        BV_true = self.BV
         ER_true = self.EE / BV_true
 
 
@@ -227,6 +208,8 @@ class Simulation:
             "Accuracy of Precision Estimation": accuracy_of_SE,
             "Coverage": coverage,
             "Inconclusive": inconclusive,
+            "Rate of Acceptance": rate_of_acceptance,
+            "Rate of Rejection": rate_of_rejection,
             "Needed n": needed_n,
             "Formula n": formula_n,
             "Skew": skew}
@@ -235,6 +218,7 @@ class Simulation:
     
     def _error_precision_metrics(self, 
                                 it_results: pd.DataFrame,
+                                z_score: float = None
                                 ) -> tuple[float, float, float]:
         """
         Evaluate how well the EE estimator tracks the true population error.
@@ -257,20 +241,12 @@ class Simulation:
         #True population parameters
         EE_pred = it_results["EE_pred"]
 
-        #Needed statistical concepts
-        half_alpha = (1-self.CL)/2
-
-        #Method one, confidence interval
-        #percentile_LLE = np.percentile(EE_pred, half_alpha*100)
-        #percentile_ULE = np.percentile(EE_pred, (self.CL+half_alpha)*100)
-        #SE_true = (percentile_ULE - percentile_LLE)/2
-
         #MUS article method
         Bias_EE = EE_pred.mean() - self.EE
-        SE_true = self.z_score * np.sqrt(EE_pred.var(ddof=1))
+        SE_true = z_score * np.sqrt(EE_pred.var(ddof=1))
 
-        MSE_error = (SE_true / self.z_score) ** 2 + Bias_EE ** 2
-        accuracy_true = self.z_score * np.sqrt(MSE_error)
+        MSE_error = (SE_true / z_score) ** 2 + Bias_EE ** 2
+        accuracy_true = z_score * np.sqrt(MSE_error)
 
         return Bias_EE, SE_true, accuracy_true
 
@@ -279,6 +255,7 @@ class Simulation:
         it_results: pd.DataFrame,
         bound_estimator: str,
         SE_true: float,
+        z_score: float = None
     ) -> tuple[float, float, float]:
         """
         Evaluate how well the SE estimator tracks the true precision.
@@ -311,24 +288,33 @@ class Simulation:
         """
         SE_pred = it_results["SE_pred"]
 
-        if bound_estimator == "Con":
-            Bias_SE = SE_pred.mean() - SE_true
-        else:
+        if bound_estimator == "HH":
             # Standard: use variance-based final estimate
-            final_estimated_precision = self.z_score * np.sqrt(it_results["VAR_pred"].mean())
+            final_estimated_precision = z_score * np.sqrt(it_results["VAR_pred"].mean())
             Bias_SE = final_estimated_precision - SE_true
+            
+        else:
+            Bias_SE = SE_pred.mean() - SE_true
 
         # Precision of Precision
-        SE_of_SE = self.z_score * SE_pred.std(ddof=1)
+        SE_of_SE = z_score * SE_pred.std(ddof=1)
 
         # Calculate Mean Squared Error (MSE) to then obtain the accuracy of precision estimation
         MSE_precision = SE_pred.var(ddof=1) + Bias_SE ** 2
-        accuracy_of_SE = self.z_score * np.sqrt(MSE_precision)
+        accuracy_of_SE = z_score * np.sqrt(MSE_precision)
 
         return Bias_SE, SE_of_SE, accuracy_of_SE
     
 
-    def _other_metrics(self, it_results, SE_true, real_n, bound_estimator, Q, ratio_EQ_std):
+    def _other_metrics(self, 
+                       it_results, 
+                       SE_true, 
+                       real_n, 
+                       bound_estimator, 
+                       Q, 
+                       ratio_EQ_std, 
+                       z_score=None
+                       ) -> tuple[float, float, float, float, float]:
         #True population parameters
         EE_pred = it_results["EE_pred"]
 
@@ -341,24 +327,26 @@ class Simulation:
         else:
             inconclusive = sum((it_results['LLE_pred'] < self.TE) & (EE_pred > self.TE)) / self.iterations
 
+        rate_of_acceptance = sum(EE_pred <= self.TE) / self.iterations
+        rate_of_rejection = sum(EE_pred > self.TE) / self.iterations
 
         # Needed sample size
         needed_n = (SE_true*np.sqrt(real_n)/(self.TE-self.EE))**2
 
         # Formula sample size
         kwargs = {"bound_estimator": bound_estimator,
-                  "Q": Q, 
+                  "BV": self.BV, 
                   "EE": self.EE,
                   "TE": self.TE,}
         
-        if bound_estimator == "Con":
+        if bound_estimator == "Poisson_Stringer":
             kwargs.update({
                 "EE": self.EE,
             })
 
         if bound_estimator == "HH" or bound_estimator == "Mod_HH":
             kwargs.update({
-                "z_score": self.z_score,
+                "z_score": z_score,
                 "std": ratio_EQ_std
             })
 
@@ -375,7 +363,7 @@ class Simulation:
             skew = (3*(average_estimated_EE-median_estimated_EE)) / std_EE
 
 
-        return coverage, inconclusive, needed_n, formula_n, skew
+        return coverage, inconclusive, rate_of_acceptance, rate_of_rejection, needed_n, formula_n, skew
     
 
     # ------------------------------------------------------------------

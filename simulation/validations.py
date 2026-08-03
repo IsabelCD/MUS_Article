@@ -175,16 +175,16 @@ def validation_population(
             )
 
 
-def validation_Q_distribution(population: pd.DataFrame) -> None:
+def validation_BV_distribution(population: pd.DataFrame) -> None:
     """Require a finite, strictly positive measure of size for every unit."""
     validation_non_empty(population, "population")
-    validation_numeric_finite(population, ["Q"], "population")
-    validation_NAs(population[["Q"]], "population Q")
+    validation_numeric_finite(population, ["BV"], "population")
+    validation_NAs(population[["BV"]], "population BV")
 
-    if (population["Q"] <= 0).any():
-        raise ValueError("Q must not contain negative or zero values.")
-    if not np.isfinite(float(population["Q"].sum())) or population["Q"].sum() <= 0:
-        raise ValueError("Total Q must be finite and positive.")
+    if (population["BV"] <= 0).any():
+        raise ValueError("BV must not contain negative or zero values.")
+    if not np.isfinite(float(population["BV"].sum())) or population["BV"].sum() <= 0:
+        raise ValueError("Total BV must be finite and positive.")
 
 
 def validation_simulation_config(
@@ -333,8 +333,8 @@ def validation_sample_design(
 ) -> None:
     """Validate HV allocation and the derived systematic sampling interval."""
     validation_non_empty(population, "population")
-    validation_required_columns(population, ["Q", "HV"], "population")
-    validation_numeric_finite(population, ["Q", "HV"], "population")
+    validation_required_columns(population, ["BV", "HV"], "population")
+    validation_numeric_finite(population, ["BV", "HV"], "population")
 
     if isinstance(sample_size, bool) or not isinstance(sample_size, Integral):
         raise TypeError("sample_size must be an integer.")
@@ -351,14 +351,14 @@ def validation_sample_design(
 
     sampling_size = sample_size - certainty_count
     remainder = population[population["HV"] != 1]
-    remainder_q = float(remainder["Q"].sum())
+    remainder_q = float(remainder["BV"].sum())
 
     if sampling_size == 0:
         if not remainder.empty:
             raise ValueError("No sample slots remain for non-certainty units.")
         return
     if remainder.empty or remainder_q <= 0:
-        raise ValueError("The non-certainty stratum must have positive total Q.")
+        raise ValueError("The non-certainty stratum must have positive total BV.")
 
     expected_si = remainder_q / sampling_size
     if SI is not None:
@@ -367,12 +367,12 @@ def validation_sample_design(
             raise ValueError("SI must be strictly positive.")
         if not np.isclose(supplied_si, expected_si, rtol=tolerance, atol=tolerance):
             raise ValueError(
-                f"SI={supplied_si} is inconsistent with Qs/ns={expected_si}."
+                f"SI={supplied_si} is inconsistent with BVs/ns={expected_si}."
             )
 
-    if hv_selection == "iterative" and (remainder["Q"] > expected_si + tolerance).any():
+    if hv_selection == "iterative" and (remainder["BV"] > expected_si + tolerance).any():
         raise ValueError(
-            "Iterative HV allocation left a non-certainty unit with Q greater than SI."
+            "Iterative HV allocation left a non-certainty unit with BV greater than SI."
         )
 
 
@@ -386,7 +386,7 @@ def validation_selected_sample(
     """Validate that a selected sample is non-empty and belongs to its frame."""
     validation_non_empty(sample, "sample")
     validation_non_empty(population, "population")
-    validation_required_columns(sample, ["Q", "HV"], "sample")
+    validation_required_columns(sample, ["BV", "HV"], "sample")
     validation_NAs(sample, "sample")
 
     if expected_size is not None:
@@ -406,14 +406,14 @@ def validation_selected_sample(
 def validation_precision_inputs(
     sample_s: pd.DataFrame,
     *,
-    Qs: float,
+    BVs: float,
     ns: int,
     z_score: float,
 ) -> None:
     """Validate inputs needed by HH-family variance estimators."""
     validation_non_empty(sample_s, "non-certainty sample")
-    validation_required_columns(sample_s, ["E", "Q"], "non-certainty sample")
-    validation_numeric_finite(sample_s, ["E", "Q"], "non-certainty sample")
+    validation_required_columns(sample_s, ["E", "BV"], "non-certainty sample")
+    validation_numeric_finite(sample_s, ["E", "BV"], "non-certainty sample")
 
     if isinstance(ns, bool) or not isinstance(ns, Integral):
         raise TypeError("ns must be an integer.")
@@ -424,11 +424,11 @@ def validation_precision_inputs(
             f"ns={ns} does not match non-certainty sample length {len(sample_s)}."
         )
 
-    q_total = _require_real(Qs, "Qs")
+    q_total = _require_real(BVs, "BVs")
     if q_total <= 0:
-        raise ValueError("Qs must be strictly positive.")
-    if (sample_s["Q"] <= 0).any():
-        raise ValueError("Sample Q values must be strictly positive.")
+        raise ValueError("BVs must be strictly positive.")
+    if (sample_s["BV"] <= 0).any():
+        raise ValueError("Sample BV values must be strictly positive.")
 
     critical_value = _require_real(z_score, "z_score")
     if critical_value <= 0:

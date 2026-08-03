@@ -27,23 +27,23 @@ RF: float = 2.31    # reliability factor (order 0)
 EF: float = 1.5     # expansion factor
 
 
-def sample_size_conservative(Q: float, EE: float, TE: float):
+def sample_size_conservative(BV: float, EE: float, TE: float):
     if TE <= EE * EF:
         return np.nan
     else:
-        formula_n = (Q*RF)/(TE-(EE*EF))
+        formula_n = (BV*RF)/(TE-(EE*EF))
         return formula_n 
 
-def sample_size_HH(Q: float, z_score: float, TE: float, std: float, EE: float):
-    formula_n = ((z_score*Q*np.mean(std))/(TE-EE))**2 
+def sample_size_HH(BV: float, z_score: float, TE: float, std: float, EE: float):
+    formula_n = ((z_score*BV*np.mean(std))/(TE-EE))**2 
     return formula_n 
 
-# def sample_size_modified_HH(sample_s: pd.DataFrame, EE: float, Qs: float, ns: int, z_score: float):
+# def sample_size_modified_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float):
 #     [...]
 
 #     return formula_n
 
-def sample_size_ratio(sample_s: pd.DataFrame, EE: float, Qs: float, ns: int, z_score: float):
+def sample_size_ratio(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float):
     [...]
 
     return formula_n

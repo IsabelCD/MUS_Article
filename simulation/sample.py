@@ -33,7 +33,7 @@ class Sample:
         population: pd.DataFrame,
         N: int,
         EE: float,
-        Q: float,
+        BV: float,
         sample_size: int,
         z_score: float,
         method: str = "MUS",
@@ -57,13 +57,13 @@ class Sample:
         #Population characteristics
         self.N = N
         self.EE = EE
-        self.Q = Q
+        self.BV = BV
 
         #Sample characteristics
         self.sample = None
         self.sample_s = None
         self.real_n = None #Real sample size
-        self.Qs = None
+        self.BVs = None
         self.ns = None
         self.SI = None
 
@@ -80,7 +80,7 @@ class Sample:
 
         if self.hv_selection == "iterative":
             kwargs.update({
-                "Q": self.Q,
+                "BV": self.BV,
                 "n": self.sample_size,
             })
 
@@ -89,9 +89,9 @@ class Sample:
             **kwargs,
             )
 
-        self.Qs = self.population[self.population["HV"] != 1]["Q"].sum()
+        self.BVs = self.population[self.population["HV"] != 1]["BV"].sum()
         self.ns = self.sample_size - int((self.population["HV"] == 1).sum())
-        self.SI = self.Qs / self.ns
+        self.SI = self.BVs / self.ns
 
     def select_sample(self):
         if self.selection_type == "systematic_sampling":
@@ -108,8 +108,8 @@ class Sample:
         #Update sample information
         self.real_n = self.sample.shape[0]
         self.ns = self.real_n - int((self.population["HV"] == 1).sum()) 
-        self.Qs = self.population[self.population["HV"] != 1]["Q"].sum()
-        self.sample['HV'] = np.where(self.sample['Q']>self.SI, 1, self.sample['HV'])         #TODO: see for no HV separation if ns and Qs is updated, rn it is not
+        self.BVs = self.population[self.population["HV"] != 1]["BV"].sum()
+        self.sample['HV'] = np.where(self.sample['BV']>self.SI, 1, self.sample['HV'])         #TODO: see for no HV separation if ns and BVs is updated, rn it is not
 
 
     
@@ -119,7 +119,7 @@ class Sample:
         # error in certainty stratum
         EEe = sum(self.sample[self.sample["HV"]==1]['E'])         
         # projected error in sampling stratum
-        self.sample_s["EQ_ratio"] = self.sample_s["E"] / self.sample_s["Q"]
+        self.sample_s["EQ_ratio"] = self.sample_s["E"] / self.sample_s["BV"]
         EEs = self.SI * self.sample_s["EQ_ratio"].sum() 
         # error estimation    
         self.EE_pred = EEe + EEs
@@ -133,7 +133,7 @@ class Sample:
 
         if self.bound_estimator == "HH" or self.bound_estimator == "Mod_HH":
             kwargs.update({
-                "Qs": self.Qs,
+                "BVs": self.BVs,
                 "ns": self.ns,
                 "z_score": self.z_score,
             })
@@ -145,7 +145,7 @@ class Sample:
 
         elif self.bound_estimator == "Ratio":
             kwargs.update({
-                "Qs": self.Qs,
+                "BVs": self.BVs,
                 "ns": self.ns,
                 "z_score": self.z_score,
             })

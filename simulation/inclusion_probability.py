@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def iterative_hv_selection(population: pd.DataFrame, Q: float, n: int) -> pd.DataFrame:
+def iterative_hv_selection(population: pd.DataFrame, BV: float, n: int) -> pd.DataFrame:
     """
     Compute inclusion probabilities and flag high-value (HV) units.
 
@@ -25,7 +25,7 @@ def iterative_hv_selection(population: pd.DataFrame, Q: float, n: int) -> pd.Dat
         *population* with the 'HV' column added / overwritten.
     """
     population = population.copy()
-    population["HV"] = np.where((population["Q"] / Q) * n > 1, 1, (population["Q"] / Q) * n)
+    population["HV"] = np.where((population["BV"] / BV) * n > 1, 1, (population["BV"] / BV) * n)
 
     n_hvs = (population["HV"] == 1).sum()
     old_n_hvs = 0
@@ -33,12 +33,12 @@ def iterative_hv_selection(population: pd.DataFrame, Q: float, n: int) -> pd.Dat
     if n_hvs > 0:
         while (n_hvs - old_n_hvs) != 0:
             Nr = n - n_hvs
-            Q_nr = population[population["HV"] != 1]["Q"].sum()
+            BV_nr = population[population["HV"] != 1]["BV"].sum()
 
             population["HV"] = np.where(
                 population["HV"] == 1,
                 1,
-                (population["Q"] / Q_nr) * Nr,
+                (population["BV"] / BV_nr) * Nr,
             )
             population["HV"] = np.where(population["HV"] > 1, 1, population["HV"])
 

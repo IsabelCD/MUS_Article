@@ -39,12 +39,12 @@ def systematic_samping(population: pd.DataFrame, SI: float, rng: float) -> pd.Da
     """
     sample = population[population["HV"] == 1].copy()
     remainder = population[population["HV"] != 1].copy()
-    remainder["cum_sum_Q"] = remainder["Q"].cumsum()
+    remainder["cum_sum_BV"] = remainder["BV"].cumsum()
 
     random_dollar = rng.uniform(0.0, SI) #TODO:check
 
-    while random_dollar < remainder["cum_sum_Q"].iloc[-1]:
-        item = remainder[remainder["cum_sum_Q"] > random_dollar].head(1)
+    while random_dollar < remainder["cum_sum_BV"].iloc[-1]:
+        item = remainder[remainder["cum_sum_BV"] > random_dollar].head(1)
         sample = pd.concat([sample, item], axis=0)
         random_dollar += SI
 
@@ -55,7 +55,7 @@ def python_selection(population: pd.DataFrame, n: int, rng: float) -> pd.DataFra
     """
     Perform weighted sampling without replacement.
     Always include rows where HV == 1, then sample the remaining rows
-    using Q as weights until the total sample size is ns.
+    using BV as weights until the total sample size is ns.
     """
 
     hv_sample = population[population["HV"] == 1].copy()
@@ -66,11 +66,11 @@ def python_selection(population: pd.DataFrame, n: int, rng: float) -> pd.DataFra
     if n_to_choose > len(remainder):
         raise ValueError("ns is larger than the available population size.")
 
-    q_sum = remainder["Q"].sum()
-    if q_sum <= 0:
-        raise ValueError("Q weights must sum to a positive value.")
+    BV_sum = remainder["BV"].sum()
+    if BV_sum <= 0:
+        raise ValueError("BV weights must sum to a positive value.")
 
-    weights = remainder["Q"] * n / q_sum
+    weights = remainder["BV"] * n / BV_sum
     
     # Normalize weights to probabilities (p needs to sum up to 1)
     probabilities = weights / np.sum(weights)
