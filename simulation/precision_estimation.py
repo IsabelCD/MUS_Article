@@ -61,7 +61,7 @@ def precision_binomial_stringer(
     EE: float,
     BV: float,
     cl: float,
-    ns: int,
+    n: int,
 ):
     errors = (
             sample_s.loc[
@@ -75,12 +75,12 @@ def precision_binomial_stringer(
     
     taints = errors["ER"].to_numpy(dtype=float)
 
-    BP = (1 - (1 - cl) ** (1 / ns))
+    BP = (1 - (1 - cl) ** (1 / n))
 
     ranks = np.arange(1, len(taints) + 1)
 
     incremental_factors = (
-        beta_dist.ppf(q=cl, a=ranks + 1, b=ns - ranks) - beta_dist.ppf(q=cl, a=ranks, b=ns - (ranks-1))
+        beta_dist.ppf(q=cl, a=ranks + 1, b=n - ranks) - beta_dist.ppf(q=cl, a=ranks, b=n - (ranks-1))
     )
 
     IA = np.dot(incremental_factors, taints)

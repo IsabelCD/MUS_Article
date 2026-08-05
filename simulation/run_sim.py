@@ -149,6 +149,7 @@ class Simulation:
                 EE=self.EE,
                 BV=self.BV,
                 sample_size=sample_size,
+                cl=cl,
                 z_score=z_score,
                 hv_selection=hv_selection,
                 selection_type=selection,

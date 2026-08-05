@@ -194,6 +194,7 @@ class Simulation:
                 BV=self.BV,
                 sample_size=sample_size,
                 z_score=z_score,
+                cl=cl,
                 hv_selection=hv_selection,
                 selection_type=selection,
                 bound_estimator=bound,

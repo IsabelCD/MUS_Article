@@ -35,6 +35,7 @@ class Sample:
         EE: float,
         BV: float,
         sample_size: int,
+        cl: float,
         z_score: float,
         hv_selection: str = "iterative",
         selection_type: str = "systematic_sampling",
@@ -45,6 +46,7 @@ class Sample:
         self.population = population
         self.sample_size = sample_size 
         self.z_score = z_score
+        self.cl = cl
         self.rng = np.random.default_rng(random_state)
 
         #Type of method to apply
@@ -127,6 +129,7 @@ class Sample:
         kwargs = {
             "sample_s": self.sample_s,
             "EE": self.EE_pred,
+            "cl": self.cl
         }
 
         if self.bound_estimator == "HH" or self.bound_estimator == "Mod_HH":
@@ -137,16 +140,17 @@ class Sample:
                 "SI": self.SI,
             })
 
-        elif self.bound_estimator == "Con":
+        elif self.bound_estimator == "Poisson_Stringer":
             kwargs.update({
                 "SI": self.SI,
+                "cl": self.cl
             })
 
-        elif self.bound_estimator == "Ratio":
+        elif self.bound_estimator == "Binomial_Stringer":
             kwargs.update({
-                "BVs": self.BVs,
-                "ns": self.ns,
-                "z_score": self.z_score,
+                "SI": self.SI,
+                "BV": self.BV,
+                "n": self.real_n
             })
 
         self.SE, self.VAR, self.ULE = precision_estimator(
