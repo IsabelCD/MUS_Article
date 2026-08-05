@@ -86,6 +86,8 @@ def main():
         print(f"  {col_name}: total={total:,.2f}  "
               f"pct_above_SI={above / total:.4%}")
 
+    df = df.drop(columns=[VALUE_COL])  # drop the original column as it doesn't belong to the simulation
+
     df.to_excel(OUTPUT_PATH, index=False)
     print(f"\nSaved: {OUTPUT_PATH}")
 
