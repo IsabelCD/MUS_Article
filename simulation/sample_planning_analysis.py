@@ -203,6 +203,7 @@ class Simulation:
 
             prediction = {
                 "iteration": i,
+                "population_ID": self.population_ID,
                 "sample_size": sample_size,
                 "confidence_level": cl,
                 "hv_selection": hv_selection,
@@ -241,6 +242,9 @@ class Simulation:
         rate_of_acceptance = sum(it_results["ULE_pred"] <= self.TE) / self.iterations
         rate_of_rejection = sum(EE_pred > self.TE) / self.iterations
 
+        #Number of samples without errors 
+        samples_without_errors = sum(it_results["number_errors"] == 0) / self.iterations
+
         BV_true = self.BV
         ER_true = self.EE / BV_true
 
@@ -251,45 +255,10 @@ class Simulation:
             "Population Error Rate": ER_true,
             "Coverage": coverage,
             "Inconclusive": inconclusive,
+            "Samples without Errors": samples_without_errors,
             "Rate of Acceptance": rate_of_acceptance,
-            "Rate of Rejection": rate_of_rejection}
-    
-
-    # ------------------------------------------------------------------
-    # Export
-    # ------------------------------------------------------------------
-
-    def export(self) -> Path:
-        """
-        Write results and metrics to an Excel workbook in config.results_dir.
-
-        Returns
-        -------
-        Path
-            Path to the written file.
-        """
-        if self.results is None or self.metrics_df is None:
-            raise RuntimeError("Call run() before export().")
-        
-        path = RESULTS_DIR / f"resultados_{self.population_ID}.xlsx"
-        with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
-            self.results.to_excel(writer, sheet_name="resultados (€)", index=False)
-
-            group_cols = ["sample_size", "anticipated_error_perc", "anticipated_std", 
-                          "hv_selection", "selection_type", "bound_estimator", "confidence_level"]
-            excluded_cols = group_cols + ["iteration", "z_score"]
-            value_cols = self.results.columns.difference(excluded_cols)
-            summary = (
-                    self.results
-                    .groupby(group_cols)[value_cols]
-                    .describe()
-                    .T
-                )
-            summary.to_excel(writer, sheet_name="estatisticas descritivas (€)", index=True)
-
-            self.metrics_df.to_excel(writer, sheet_name="métricas", index=False)
-
-        print(f"Exported → {path}")
-        return path
-
+            "Rate of Rejection": rate_of_rejection,
+            "Average Error Estimation": it_results["EE_pred"].mean(), 
+            "Average Precision Estimation": it_results["SE_pred"].mean()
+            }
 
