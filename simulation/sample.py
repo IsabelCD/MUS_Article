@@ -36,7 +36,6 @@ class Sample:
         BV: float,
         sample_size: int,
         z_score: float,
-        method: str = "MUS",
         hv_selection: str = "iterative",
         selection_type: str = "systematic_sampling",
         bound_estimator: str = "HH",
@@ -49,7 +48,6 @@ class Sample:
         self.rng = np.random.default_rng(random_state)
 
         #Type of method to apply
-        self.method = method
         self.hv_selection = hv_selection
         self.selection_type = selection_type
         self.bound_estimator = bound_estimator
@@ -71,8 +69,8 @@ class Sample:
         self.EE_pred = None
         self.SE = None
         self.VAR = None
-        self.LLE = None
         self.ULE = None
+        self.number_errors = None
 
 
     def assign_hv(self):
@@ -136,6 +134,7 @@ class Sample:
                 "BVs": self.BVs,
                 "ns": self.ns,
                 "z_score": self.z_score,
+                "SI": self.SI,
             })
 
         elif self.bound_estimator == "Con":
@@ -150,16 +149,20 @@ class Sample:
                 "z_score": self.z_score,
             })
 
-        self.SE, self.VAR, self.LLE, self.ULE = precision_estimator(
+        self.SE, self.VAR, self.ULE = precision_estimator(
             bound_estimator=self.bound_estimator,
             **kwargs,
         )
+
+    def number_of_sample_errors(self):
+        self.number_errors = (self.sample_s["E"] > 0).sum()
 
     def run(self):
         self.assign_hv()
         self.select_sample()
         self.estimate_error()
         self.obtain_precision()
+        self.number_of_sample_errors()
 
         return self
     
@@ -168,7 +171,7 @@ class Sample:
             "EE_pred": self.EE_pred,
             "SE_pred": self.SE,
             "VAR_pred": self.VAR,
-            "LLE_pred": self.LLE,
             "ULE_pred": self.ULE,
-            "real_n": self.real_n
+            "real_n": self.real_n, 
+            "number_errors": self.number_errors,
         }

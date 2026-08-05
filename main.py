@@ -24,7 +24,7 @@ def main():
                     artificial_pop = import_population(**population_config)
 
                     simulation = Simulation(
-                        population_ID=population_config["id"],
+                        population_ID=f"BV{bv_nr}_F{f_target}_C{corr_target}_R{r_target}",
                         population=artificial_pop,
                         simulation_config=SIMULATION_SETTINGS,
                     )
