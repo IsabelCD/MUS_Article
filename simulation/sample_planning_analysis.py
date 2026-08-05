@@ -113,6 +113,7 @@ class Simulation:
             for cl in self.confidence_levels:
                 z_score = norm.ppf(cl)
                 config["confidence_level"] = cl
+                config["z_score"] = z_score
 
                 for anticipated_error in self.anticipated_errors:
                     config["anticipated_error_perc"] = anticipated_error
@@ -130,7 +131,7 @@ class Simulation:
                                                                std=ratio_EQ_std, 
                                                                AE=anticipated_error*self.EE)
                     
-                    iteration_predictions, metrics = self._run_single_combination(config, z_score, sample_size, combination_idx)
+                    iteration_predictions, metrics = self._run_single_combination(config, sample_size, combination_idx)
                     predictions.extend(iteration_predictions)
                     all_metrics.append(config | metrics)
                     combination_idx += 1
@@ -146,7 +147,7 @@ class Simulation:
                                                                std=anticipated_std*ratio_EQ_std, 
                                                                AE=self.EE)
 
-                        iteration_predictions, metrics = self._run_single_combination(config, z_score, sample_size, combination_idx)
+                        iteration_predictions, metrics = self._run_single_combination(config, sample_size, combination_idx)
                         predictions.extend(iteration_predictions)
                         all_metrics.append(config | metrics)
                         combination_idx += 1
@@ -161,7 +162,7 @@ class Simulation:
                                                                std=ss_config["anticipated_std"]*ratio_EQ_std, 
                                                                AE=ss_config["anticipated_error_perc"]*self.EE)
 
-                        iteration_predictions, metrics = self._run_single_combination(config, z_score, sample_size, combination_idx)
+                        iteration_predictions, metrics = self._run_single_combination(config, sample_size, combination_idx)
                         predictions.extend(iteration_predictions)
                         all_metrics.append(config | metrics)
                         combination_idx += 1
@@ -172,13 +173,14 @@ class Simulation:
         )
 
 
-    def _run_single_combination(self, config: dict, z_score: float, sample_size: int, config_idx: int) -> tuple[list[dict], dict]:
+    def _run_single_combination(self, config: dict, sample_size: int, config_idx: int) -> tuple[list[dict], dict]:
         combo_predictions = []
 
         hv_selection = config["hv_selection"]
         selection = config["selection_type"]
         bound = config["bound_estimator"]
         cl = config["confidence_level"]
+        z_score = config["z_score"]
 
         for i in tqdm(range(self.iterations)):
             random_state = (self.seed + config_idx * self.iterations + i)
@@ -273,8 +275,9 @@ class Simulation:
         with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
             self.results.to_excel(writer, sheet_name="resultados (€)", index=False)
 
-            group_cols = ["sample_size", "hv_selection", "selection_type", "bound_estimator", "confidence_level"]
-            excluded_cols = group_cols + ["iteration"]
+            group_cols = ["sample_size", "anticipated_error_perc", "anticipated_std", 
+                          "hv_selection", "selection_type", "bound_estimator", "confidence_level"]
+            excluded_cols = group_cols + ["iteration", "z_score"]
             value_cols = self.results.columns.difference(excluded_cols)
             summary = (
                     self.results
