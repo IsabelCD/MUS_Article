@@ -58,6 +58,75 @@ SIMULATION_SETTINGS = {
     ],
     }
 
+
+SAMPLE_PLANNING_SIMULATION_SETTINGS = {
+    "anticipated_errors": [0.7, 0.85, 1, 1.15, 1.3], 
+    "anticipated_stds": [0.7, 0.85, 1.15, 1.3],
+    "sample_size_combinations": [
+        {
+            "anticipated_error_perc": 0.7,
+            "anticipated_std": 0.7,
+        },
+        {
+            "anticipated_error_perc": 0.85,
+            "anticipated_std": 0.85,
+        },
+        {
+            "anticipated_error_perc": 1.15,
+            "anticipated_std": 1.15,
+        },
+        {
+            "anticipated_error_perc": 1.3,
+            "anticipated_std": 1.3,
+        },
+        {
+            "anticipated_error_perc": 1.3,
+            "anticipated_std": 0.7,
+        },
+        {
+            "anticipated_error_perc": 0.7,
+            "anticipated_std": 1.3,
+        },
+
+    ],
+    "CL": [0.80, 0.90, 0.95],
+    "iterations": 10_000,
+    "seed": 120,
+    "TE_perc": 0.02,
+    "configurations": [
+        {
+            "method": "MUS",
+            "hv_selection": "nothing",
+            "selection_type": "systematic_sampling",
+            "bound_estimator": "Poisson_Stringer",
+        },
+        {
+            "method": "MUS",
+            "hv_selection": "nothing",
+            "selection_type": "systematic_sampling",
+            "bound_estimator": "Binomial_Stringer",
+        },
+        {
+            "method": "MUS",
+            "hv_selection": "nothing",
+            "selection_type": "systematic_sampling",
+            "bound_estimator": "Moment",
+        },
+        {
+            "method": "MUS",
+            "hv_selection": "iterative",
+            "selection_type": "systematic_sampling",
+            "bound_estimator": "HH",
+        },
+        # {
+        #     "method": "MUS",
+        #     "hv_selection": "iterative",
+        #     "selection_type": "systematic_sampling",
+        #     "bound_estimator": "Mod_HH",
+        # },
+    ],
+    }
+
 rf_path = DATA_DIR / 'reliability factor.xlsx'
 RF_TABLE = pd.read_excel(rf_path)
 RF_TABLE.drop(index=0, inplace=True)
