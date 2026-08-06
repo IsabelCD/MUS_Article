@@ -1,6 +1,8 @@
 from pathlib import Path
 import pandas as pd
 
+RANDOM_SEED = 120
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 RESULTS_DIR = PROJECT_ROOT / "results"

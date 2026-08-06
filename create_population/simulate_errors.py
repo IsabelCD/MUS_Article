@@ -71,6 +71,7 @@ FEASIBILITY CHECK (this is the part relevant to your question):
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from config import RANDOM_SEED
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -85,8 +86,6 @@ F_LEVELS = [0.05, 0.20, 0.50]                # error frequency levels
 CORR_LEVELS = [0.10, 0.25, 0.50]             # correlation levels
 R_LEVELS = [0.002, 0.01, 0.015, 0.025, 0.03, 0.05]  # error rate levels (% of total BV)
 
-DIRECTION = 1        # 1 = overstatement errors, -1 = understatement errors
-RANDOM_SEED = 42
 CORR_TOLERANCE = 0.05 # flag a combo if achieved corr misses target by more than this
                       # (this can happen even when the TOTAL is feasible - see note below)
 MAX_CORR_RETRIES = 500 # if a random draw misses CORR_TOLERANCE, retry with a fresh draw
@@ -250,7 +249,7 @@ def _solve_rho(bv, z_bv, noise_all, k, target_total, target_corr,
     return mid
 
 
-def simulate_errors(book_values, f, corr, r, direction=1, rng=None,
+def simulate_errors(book_values, f, corr, r, rng=None,
                      tolerance=0.02, max_retries=25):
     """
     Inject simulated errors into one book value population for one (f, corr, r) combo.
@@ -264,7 +263,7 @@ def simulate_errors(book_values, f, corr, r, direction=1, rng=None,
     give the water-filling algorithm more room to hit the target corr than others.
 
     Returns:
-        errors_full          : np.array, error amount per item (0 if no error), signed per direction
+        errors_full          : np.array, error amount per item (0 if no error)
         is_error             : boolean mask of which items contain an error
         achieved_corr        : Pearson correlation actually achieved (whole population, signed)
         target_total         : the intended total error amount (r * sum(book_values))
@@ -292,9 +291,8 @@ def simulate_errors(book_values, f, corr, r, direction=1, rng=None,
         noise_all = rng.normal(0.0, 1.0, n)
 
         rho = _solve_rho(bv, z_bv, noise_all, k, target_total, corr)
-        errors_unsigned, idx, _ = _errors_for_rho(bv, z_bv, rho, noise_all, k, target_total)
+        errors_full, idx, _ = _errors_for_rho(bv, z_bv, rho, noise_all, k, target_total)
 
-        errors_full = errors_unsigned * direction
         achieved_corr = np.corrcoef(bv, errors_full)[0, 1] if errors_full.std() > 0 else np.nan
         deviation = abs(achieved_corr - corr) if not np.isnan(achieved_corr) else np.inf
 
@@ -315,10 +313,10 @@ def simulate_errors(book_values, f, corr, r, direction=1, rng=None,
             capacity_constrained, n_attempts, within_tolerance)
 
 
-def build_detail_frame(pop_name, book_values, f, corr, r, direction, rng):
+def build_detail_frame(pop_name, book_values, f, corr, r,  rng):
     (errors_full, is_error, achieved_corr, target_total, capacity_constrained,
      n_attempts, within_tolerance) = simulate_errors(
-        book_values, f, corr, r, direction=direction, rng=rng,
+        book_values, f, corr, r, rng=rng,
         tolerance=CORR_TOLERANCE, max_retries=MAX_CORR_RETRIES
     )
     detail = pd.DataFrame({
@@ -341,7 +339,7 @@ def build_detail_frame(pop_name, book_values, f, corr, r, direction, rng):
         "n_errors": int(is_error.sum()),
         "total_book_value": float(book_values.sum()),
         "target_error_total": target_total,
-        "achieved_error_total": float(errors_full.sum() * direction),  # magnitude, sign-agnostic
+        "achieved_error_total": float(errors_full.sum()),  # magnitude, sign-agnostic
         "achieved_corr": achieved_corr,
         "capacity_constrained": capacity_constrained,
         "n_attempts": n_attempts,
@@ -409,7 +407,7 @@ def main():
                         skipped_count += 1
                         continue
                     detail, summary_row = build_detail_frame(
-                        pop_name, book_values, f, corr, r, DIRECTION, rng
+                        pop_name, book_values, f, corr, r, rng
                     )
                     details_by_population[pop_name].append(detail)
                     summary_rows.append(summary_row)
