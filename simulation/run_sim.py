@@ -28,6 +28,7 @@ from scipy.stats import norm
 
 from config import RESULTS_DIR
 from simulation.sample import Sample
+from simulation.inclusion_probability import iterative_hv_selection
 from simulation.sample_size_calculation import calculate_n_from_formula
 from simulation.validations import validation_NAs
 
@@ -138,6 +139,13 @@ class Simulation:
         z_score = config["z_score"]
         sample_size = config["sample_size"]
 
+        # Certainty-unit (HV) assignment depends only on BV/sample_size, not
+        # on the per-iteration shuffle order, so compute it once per combo
+        # instead of recomputing it from scratch on every iteration.
+        hv_lookup = None
+        if hv_selection == "iterative":
+            hv_lookup = iterative_hv_selection(self.population, self.BV, sample_size)["HV"]
+
         for i in tqdm(range(self.iterations)):
             random_state = (self.seed + config_idx * self.iterations + i)
 
@@ -155,6 +163,7 @@ class Simulation:
                 selection_type=selection,
                 bound_estimator=bound,
                 random_state=random_state,
+                hv_lookup=hv_lookup,
             ).run()
 
             prediction = {
@@ -391,5 +400,5 @@ class Simulation:
 
             self.metrics_df.to_excel(writer, sheet_name="metrics", index=False)
 
-        print(f"Exported → {path}")
+        print(f"Exported -> {path}")
         return path

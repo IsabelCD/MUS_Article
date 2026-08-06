@@ -16,6 +16,7 @@ Entry point
         combination and writes an Excel workbook to ./results/.
 """
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -26,7 +27,8 @@ from scipy.stats import norm
 
 from config import RESULTS_DIR
 from simulation.sample import Sample
-from simulation.sample_size_calculation import calculate_n_from_formula
+from simulation.inclusion_probability import iterative_hv_selection
+from simulation.sample_size_calculation import calculate_n_from_formula, EF
 from simulation.validations import validation_NAs
 
 
@@ -100,7 +102,7 @@ class Simulation:
     def _run_iterations(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         predictions = []
         all_metrics = []
-        ratio_EQ_std = self.population['E'].std() / self.population['E'].mean()
+        ratio_EQ_std = (self.population["E"] / self.population["BV"]).std(ddof=1)
 
         validation_NAs(self.population)
         nr_configs = len(self.simulation_configs)
@@ -124,13 +126,23 @@ class Simulation:
                                                                 TE=self.TE, 
                                                                 AE=anticipated_error*self.EE)
                     elif config["bound_estimator"] == "HH":
-                        sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"], 
-                                                               BV=self.BV, 
-                                                               z_score=z_score, 
-                                                               TE=self.TE, 
-                                                               std=ratio_EQ_std, 
+                        sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"],
+                                                               BV=self.BV,
+                                                               z_score=z_score,
+                                                               TE=self.TE,
+                                                               std=ratio_EQ_std,
                                                                AE=anticipated_error*self.EE)
-                    
+
+                    reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
+                                                      sample_size, self.TE, anticipated_error * self.EE)
+                    if reason:
+                        print(f"Skipping configuration {combination_idx} "
+                              f"({config['bound_estimator']}, anticipated_error_perc={anticipated_error}, "
+                              f"CL={cl}): {reason}")
+                        all_metrics.append(config | self._infeasible_metrics_row(reason))
+                        combination_idx += 1
+                        continue
+
                     iteration_predictions, metrics = self._run_single_combination(config, sample_size, combination_idx)
                     predictions.extend(iteration_predictions)
                     all_metrics.append(config | metrics)
@@ -140,12 +152,22 @@ class Simulation:
                     for anticipated_std in self.anticipated_stds:
                         config["anticipated_error_perc"] = 1
                         config["anticipated_std"] = anticipated_std
-                        sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"], 
-                                                               BV=self.BV, 
-                                                               z_score=z_score, 
-                                                               TE=self.TE, 
-                                                               std=anticipated_std*ratio_EQ_std, 
+                        sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"],
+                                                               BV=self.BV,
+                                                               z_score=z_score,
+                                                               TE=self.TE,
+                                                               std=anticipated_std*ratio_EQ_std,
                                                                AE=self.EE)
+
+                        reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
+                                                          sample_size, self.TE, self.EE)
+                        if reason:
+                            print(f"Skipping configuration {combination_idx} "
+                                  f"({config['bound_estimator']}, anticipated_std={anticipated_std}, "
+                                  f"CL={cl}): {reason}")
+                            all_metrics.append(config | self._infeasible_metrics_row(reason))
+                            combination_idx += 1
+                            continue
 
                         iteration_predictions, metrics = self._run_single_combination(config, sample_size, combination_idx)
                         predictions.extend(iteration_predictions)
@@ -155,12 +177,22 @@ class Simulation:
                     for ss_config in self.sample_size_combinations:
                         config["anticipated_error_perc"] = ss_config["anticipated_error_perc"]
                         config["anticipated_std"] = ss_config["anticipated_std"]
-                        sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"], 
-                                                               BV=self.BV, 
-                                                               z_score=z_score, 
-                                                               TE=self.TE, 
-                                                               std=ss_config["anticipated_std"]*ratio_EQ_std, 
+                        sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"],
+                                                               BV=self.BV,
+                                                               z_score=z_score,
+                                                               TE=self.TE,
+                                                               std=ss_config["anticipated_std"]*ratio_EQ_std,
                                                                AE=ss_config["anticipated_error_perc"]*self.EE)
+
+                        reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
+                                                          sample_size, self.TE,
+                                                          ss_config["anticipated_error_perc"] * self.EE)
+                        if reason:
+                            print(f"Skipping configuration {combination_idx} "
+                                  f"({config['bound_estimator']}, {ss_config}, CL={cl}): {reason}")
+                            all_metrics.append(config | self._infeasible_metrics_row(reason))
+                            combination_idx += 1
+                            continue
 
                         iteration_predictions, metrics = self._run_single_combination(config, sample_size, combination_idx)
                         predictions.extend(iteration_predictions)
@@ -182,6 +214,13 @@ class Simulation:
         cl = config["confidence_level"]
         z_score = config["z_score"]
 
+        # Certainty-unit (HV) assignment depends only on BV/sample_size, not
+        # on the per-iteration shuffle order, so compute it once per combo
+        # instead of recomputing it from scratch on every iteration.
+        hv_lookup = None
+        if hv_selection == "iterative":
+            hv_lookup = iterative_hv_selection(self.population, self.BV, sample_size)["HV"]
+
         for i in tqdm(range(self.iterations)):
             random_state = (self.seed + config_idx * self.iterations + i)
 
@@ -199,6 +238,7 @@ class Simulation:
                 selection_type=selection,
                 bound_estimator=bound,
                 random_state=random_state,
+                hv_lookup=hv_lookup,
             ).run()
 
 
@@ -250,7 +290,7 @@ class Simulation:
         ER_true = self.EE / BV_true
 
 
-        return {"Population ID": self.population_ID, 
+        return {"Population ID": self.population_ID,
             "Population Book Value": BV_true,
             "Population Error Amount": self.EE,
             "Population Error Rate": ER_true,
@@ -259,7 +299,66 @@ class Simulation:
             "Samples without Errors": samples_without_errors,
             "Rate of Acceptance": rate_of_acceptance,
             "Rate of Rejection": rate_of_rejection,
-            "Average Error Estimation": it_results["EE_pred"].mean(), 
-            "Average Precision Estimation": it_results["SE_pred"].mean()
+            "Average Error Estimation": it_results["EE_pred"].mean(),
+            "Average Precision Estimation": it_results["SE_pred"].mean(),
+            "obs": None,
             }
+
+    def _infeasible_reason(
+        self, bound_estimator: str, hv_selection: str, sample_size: float, TE: float, AE: float
+    ) -> str | None:
+        """
+        Return a human-readable reason if `sample_size` (from an analytical
+        sample-size formula) cannot be used to run this configuration, or
+        None if it is usable.
+
+        Two known failure modes are guarded here:
+        - Poisson_Stringer's conservative formula is undefined (returns NaN)
+          whenever TE <= AE * EF; this branch also covers any other formula
+          that returns a non-finite or non-positive value.
+        - With hv_selection="iterative", a sample_size at or above the
+          population size drives every unit into the certainty stratum,
+          leaving none to draw a systematic sample from; the non-certainty
+          stratum sample then has no capacity for the units the certainty
+          allocation didn't already claim, and selection.systematic_samping
+          fails outright on the empty remainder.
+        """
+        if not (np.isfinite(sample_size) and sample_size > 0):
+            if bound_estimator == "Poisson_Stringer":
+                return (
+                    f"Poisson_Stringer's conservative sample-size formula is undefined here: "
+                    f"it requires TE > AE * EF (EF={EF}), but TE={TE:,.2f} and AE*EF={AE * EF:,.2f}."
+                )
+            return (
+                f"{bound_estimator}'s analytical sample-size formula returned a non-finite or "
+                f"non-positive value ({sample_size})."
+            )
+
+        if hv_selection == "iterative" and sample_size >= self.N:
+            return (
+                f"{bound_estimator}'s analytical sample size ({sample_size:,.0f}) is not smaller "
+                f"than the population size (N={self.N}); iterative certainty-unit allocation "
+                f"would leave no non-certainty units to draw a systematic sample from."
+            )
+
+        return None
+
+    def _infeasible_metrics_row(self, reason: str) -> dict:
+        """Metrics row for a configuration that could not be run (see _infeasible_reason)."""
+        BV_true = self.BV
+        ER_true = self.EE / BV_true
+        return {
+            "Population ID": self.population_ID,
+            "Population Book Value": BV_true,
+            "Population Error Amount": self.EE,
+            "Population Error Rate": ER_true,
+            "Coverage": np.nan,
+            "Inconclusive": np.nan,
+            "Samples without Errors": np.nan,
+            "Rate of Acceptance": np.nan,
+            "Rate of Rejection": np.nan,
+            "Average Error Estimation": np.nan,
+            "Average Precision Estimation": np.nan,
+            "obs": reason,
+        }
 

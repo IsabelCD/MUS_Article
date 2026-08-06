@@ -23,7 +23,16 @@ def systematic_samping(population: pd.DataFrame, SI: float, rng: float) -> pd.Da
 
     Units already flagged as HV (column *method* == 1) are included with
     certainty. The remaining units are sampled using a random start with a
-    fixed sampling interval *SI* applied to cumulative book values.
+    fixed sampling interval *SI* applied to cumulative book values: the
+    marks are ``random_start, random_start + SI, random_start + 2*SI, ...``
+    and each mark selects the first remaining item (in *population*'s
+    current row order) whose cumulative book value exceeds it. Row order
+    therefore affects which items get selected, same as any systematic
+    sample -- this is why the caller shuffles the population beforehand.
+
+    Selection is vectorized (cumulative sum + ``np.searchsorted``) instead
+    of filtering/concatenating one row at a time; it selects the same items
+    as the equivalent per-mark loop for the same random draw.
 
     Parameters
     ----------
@@ -38,16 +47,29 @@ def systematic_samping(population: pd.DataFrame, SI: float, rng: float) -> pd.Da
         Sampled rows (HV certainty units + PPS-selected units), deduplicated.
     """
     sample = population[population["HV"] == 1].copy()
-    remainder = population[population["HV"] != 1].copy()
-    remainder["cum_sum_BV"] = remainder["BV"].cumsum()
+    remainder = population[population["HV"] != 1]
+
+    cum_sum_BV = remainder["BV"].to_numpy().cumsum()
+    total = cum_sum_BV[-1]
 
     random_dollar = rng.uniform(0.0, SI) #TODO:check
 
-    while random_dollar < remainder["cum_sum_BV"].iloc[-1]:
-        item = remainder[remainder["cum_sum_BV"] > random_dollar].head(1)
-        sample = pd.concat([sample, item], axis=0)
-        random_dollar += SI
+    # Every mark random_dollar + k*SI below total, computed with a generous
+    # upper bound on k and then filtered by the same "< total" condition the
+    # original while-loop used, so the exact stopping point matches.
+    max_marks = int(np.ceil((total - random_dollar) / SI)) + 2
+    marks = random_dollar + SI * np.arange(max(max_marks, 0))
+    marks = marks[marks < total]
 
+    # First position whose cumulative BV exceeds each mark -- equivalent to
+    # `remainder[remainder["cum_sum_BV"] > mark].head(1)` for every mark at
+    # once. Marks are increasing, so any item spanning multiple marks
+    # produces adjacent repeated positions, which np.unique collapses.
+    positions = np.searchsorted(cum_sum_BV, marks, side="right")
+    positions = np.unique(positions)
+
+    sampled_remainder = remainder.iloc[positions]
+    sample = pd.concat([sample, sampled_remainder], axis=0)
     sample = sample.loc[~sample.index.duplicated()]
     return sample
 

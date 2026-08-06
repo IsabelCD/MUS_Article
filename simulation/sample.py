@@ -37,6 +37,13 @@ class Sample:
     bound_estimator : str
         Precision/bound estimator used. See simulation/precision_estimation.py
         for the implemented options.
+    hv_lookup : pd.Series, optional
+        Precomputed "HV" values indexed by the population's row index, for
+        hv_selection="iterative". The certainty-unit assignment depends only
+        on BV and sample_size, not on row order, so it is identical for
+        every Monte Carlo iteration of the same (population, sample_size);
+        passing it in lets the caller compute it once per combination
+        instead of recomputing it from scratch on every iteration.
     """
 
     def __init__(
@@ -51,11 +58,12 @@ class Sample:
         hv_selection: str = "iterative",
         selection_type: str = "systematic_sampling",
         bound_estimator: str = "HH",
-        random_state: int = 120
+        random_state: int = 120,
+        hv_lookup: pd.Series | None = None,
     ):
         #Simulation parameters
         self.population = population
-        self.sample_size = sample_size 
+        self.sample_size = sample_size
         self.z_score = z_score
         self.cl = cl
         self.rng = np.random.default_rng(random_state)
@@ -64,7 +72,8 @@ class Sample:
         self.hv_selection = hv_selection
         self.selection_type = selection_type
         self.bound_estimator = bound_estimator
-        
+        self.hv_lookup = hv_lookup
+
         #Population characteristics
         self.N = N
         self.EE = EE
@@ -87,18 +96,24 @@ class Sample:
 
 
     def assign_hv(self):
-        kwargs = {"population": self.population,}
+        if self.hv_selection == "iterative" and self.hv_lookup is not None:
+            # HV assignment depends only on BV/sample_size, not row order,
+            # so reuse the precomputed lookup instead of recomputing it.
+            self.population = self.population.copy()
+            self.population["HV"] = self.hv_lookup.reindex(self.population.index).to_numpy()
+        else:
+            kwargs = {"population": self.population,}
 
-        if self.hv_selection == "iterative":
-            kwargs.update({
-                "BV": self.BV,
-                "n": self.sample_size,
-            })
+            if self.hv_selection == "iterative":
+                kwargs.update({
+                    "BV": self.BV,
+                    "n": self.sample_size,
+                })
 
-        self.population = assign_hv_by_method(
-            hv_selection = self.hv_selection,
-            **kwargs,
-            )
+            self.population = assign_hv_by_method(
+                hv_selection = self.hv_selection,
+                **kwargs,
+                )
 
         self.BVs = self.population[self.population["HV"] != 1]["BV"].sum()
         self.ns = self.sample_size - int((self.population["HV"] == 1).sum())
@@ -159,9 +174,16 @@ class Sample:
 
         elif self.bound_estimator == "Binomial_Stringer":
             kwargs.update({
-                "SI": self.SI,
                 "BV": self.BV,
                 "n": self.real_n
+            })
+
+        elif self.bound_estimator == "Moment":
+            del kwargs["cl"]
+            kwargs.update({
+                "BVs": self.BVs,
+                "ns": self.ns,
+                "z_score": self.z_score,
             })
 
         self.SE, self.VAR, self.ULE = precision_estimator(
