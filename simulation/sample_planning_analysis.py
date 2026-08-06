@@ -64,7 +64,7 @@ class Simulation:
         #Simulation parameters
         self.population_ID=population_ID
         self.population=population
-        self.confidence_levels= simulation_config["confidence_levels"]
+        self.confidence_levels= simulation_config["CL"]
 
         self.simulation_configs = simulation_config["configurations"]
         self.anticipated_errors = simulation_config["anticipated_errors"]

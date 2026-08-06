@@ -108,7 +108,3 @@ SAMPLE_PLANNING_SIMULATION_SETTINGS = {
         },
     ],
     }
-
-rf_path = DATA_DIR / 'reliability factor.xlsx'
-RF_TABLE = pd.read_excel(rf_path)
-RF_TABLE.drop(index=0, inplace=True)

@@ -3,10 +3,10 @@ import pandas as pd
 from config import DATA_DIR
 
 
-def import_population(bv_nr: str, f_target: float, corr_target: float, r_target: float) -> pd.DataFrame:
+def import_population(BV_pop: str, f_target: float, corr_target: float, r_target: float) -> pd.DataFrame:
     # load data
     data_path = DATA_DIR / 'simulated_error_populations.xlsx'
-    artificial_univ = pd.read_excel(data_path, sheet_name=bv_nr)
+    artificial_univ = pd.read_excel(data_path, sheet_name=f"Detail_{BV_pop}")
 
     artificial_univ = artificial_univ[artificial_univ['f_target'] == f_target]
     artificial_univ = artificial_univ[artificial_univ['corr_target'] == corr_target]

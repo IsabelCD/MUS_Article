@@ -13,14 +13,14 @@ def main():
             for corr_target in POPULATION_CONFIGS["corr_target"]:
                 for r_target in POPULATION_CONFIGS["r_target"]:
 
-                    print(f"Running simulation for population config: {population_config}")
                     population_config = {
                         "BV_pop": bv_nr,
                         "f_target": f_target,
                         "corr_target": corr_target,
                         "r_target": r_target
                     }
-                    
+                    print(f"Running simulation for population config: {population_config}")
+
                     artificial_pop = import_population(**population_config)
 
                     simulation = Simulation(

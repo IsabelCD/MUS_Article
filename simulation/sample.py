@@ -10,22 +10,33 @@ CONSERVATIVE_SAMPLING = ['con_systematic_sampling', 'sequential_list']
 
 class Sample:
     """
-    XX
+    Draws and evaluates one sample from a population for one Monte Carlo
+    iteration: assigns certainty (HV) units, selects the sample, projects
+    the population error, and estimates precision.
 
     Parameters
     ----------
     population : pd.DataFrame
-        The actual population, with columns BV, E, ER, Q 
+        The population for this iteration, with columns BV, E, ER.
+    N : int
+        Population size.
+    EE : float
+        True population error (used only for reporting, not estimation).
+    BV : float
+        Total population book value.
     sample_size : int
-        Intended sample size
-    CL : float
-        Confidence interval. Default is 80%
-    method : str
-        Sampling method. Can be MUS or MRS
-    selection_type : str 
-        Method for selecting with PPS
+        Intended sample size.
+    cl : float
+        Confidence level (e.g. 0.80).
+    z_score : float
+        Normal critical value corresponding to `cl`.
+    hv_selection : str
+        Certainty-unit assignment method. "nothing" or "iterative".
+    selection_type : str
+        Method for selecting with PPS. "systematic_sampling" or "python".
     bound_estimator : str
-        Bound estimator used. Default is HH
+        Precision/bound estimator used. See simulation/precision_estimation.py
+        for the implemented options.
     """
 
     def __init__(

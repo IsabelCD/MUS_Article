@@ -66,7 +66,7 @@ class Simulation:
         #Simulation parameters
         self.population_ID=population_ID
         self.population=population
-        self.confidence_levels= simulation_config["confidence_levels"]
+        self.confidence_levels= simulation_config["CL"]
 
         self.sample_sizes = simulation_config["sample_sizes"]
         self.simulation_configs = simulation_config["configurations"]
@@ -176,7 +176,6 @@ class Simulation:
         metrics = self._metrics_for_method(
             combo_predictions_df,
             config,
-            self.ratio_EQ_std,
         )
         
         return combo_predictions, metrics
