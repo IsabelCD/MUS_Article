@@ -1,6 +1,7 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
+from tqdm import tqdm
 
 from config import *
 from simulation.sample_planning_analysis import Simulation
@@ -10,7 +11,7 @@ from create_population.import_population import import_population
 
 def _population_id(population_config: dict) -> str:
     return (
-        f"BV{population_config['BV_pop']}_F{population_config['f_target']}"
+        f"{population_config['BV_pop']}_F{population_config['f_target']}"
         f"_C{population_config['corr_target']}_R{population_config['r_target']}"
     )
 
@@ -62,7 +63,7 @@ def main(max_workers: int | None = None):
         for bv_nr in POPULATION_CONFIGS["BV_pop"]
         for f_target in POPULATION_CONFIGS["f_target"]
         for corr_target in POPULATION_CONFIGS["corr_target"]
-        for r_target in POPULATION_CONFIGS["r_target"]
+        for r_target in [0.002, 0.01] #configs below materiality
     ]
 
     print(f"Loading {len(population_configs)} populations...")
@@ -74,7 +75,11 @@ def main(max_workers: int | None = None):
             executor.submit(_run_one_population, cfg, pop): cfg
             for cfg, pop in zip(population_configs, populations)
         }
-        for future in as_completed(futures):
+        for future in tqdm(
+            as_completed(futures),
+            total=len(futures),
+            desc="Processing populations",
+        ):
             cfg = futures[future]
             try:
                 metrics_frames.append(future.result())
@@ -89,7 +94,8 @@ def main(max_workers: int | None = None):
     with pd.ExcelWriter(path, engine="xlsxwriter") as writer:
         metrics.to_excel(writer, sheet_name="metrics", index=False)
 
-        aggregate_metrics(metrics, "sensitivity").to_excel(writer, sheet_name="aggregate_metrics", index=True)
+        for group_col, table in aggregate_metrics(metrics, "sensitivity").items():
+            table.to_excel(writer, sheet_name=f"agg_{group_col}"[:31], index=True)
 
     print(f"Exported -> {path}")
 

@@ -18,7 +18,6 @@ Entry point
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from pathlib import Path
 
@@ -30,6 +29,8 @@ from simulation.sample import Sample
 from simulation.inclusion_probability import iterative_hv_selection
 from simulation.sample_size_calculation import calculate_n_from_formula, EF
 from simulation.validations import validation_NAs
+
+MIN_SAMPLE_SIZE = 30  # minimum sample size for statistical sampling
 
 
 # ---------------------------------------------------------------------------
@@ -120,11 +121,13 @@ class Simulation:
                 for anticipated_error in self.anticipated_errors:
                     config["anticipated_error_perc"] = anticipated_error
                     config["anticipated_std"] = 1
-                    if config["bound_estimator"] == "Poisson_Stringer":
+                    config["sweep"] = "anticipated_error"
+                    if config["bound_estimator"] == "Poisson_Stringer" or config["bound_estimator"] == "Binomial_Stringer":
                         sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"], 
                                                                 BV=self.BV, 
                                                                 TE=self.TE, 
-                                                                AE=anticipated_error*self.EE)
+                                                                AE=anticipated_error*self.EE,
+                                                                cl=config["confidence_level"])
                     elif config["bound_estimator"] == "HH":
                         sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"],
                                                                BV=self.BV,
@@ -132,6 +135,8 @@ class Simulation:
                                                                TE=self.TE,
                                                                std=ratio_EQ_std,
                                                                AE=anticipated_error*self.EE)
+                    sample_size = self._apply_min_sample_size(sample_size)
+                    config["sample_size"] = sample_size
 
                     reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
                                                       sample_size, self.TE, anticipated_error * self.EE)
@@ -152,12 +157,15 @@ class Simulation:
                     for anticipated_std in self.anticipated_stds:
                         config["anticipated_error_perc"] = 1
                         config["anticipated_std"] = anticipated_std
+                        config["sweep"] = "anticipated_std"
                         sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"],
                                                                BV=self.BV,
                                                                z_score=z_score,
                                                                TE=self.TE,
                                                                std=anticipated_std*ratio_EQ_std,
                                                                AE=self.EE)
+                        sample_size = self._apply_min_sample_size(sample_size)
+                        config["sample_size"] = sample_size
 
                         reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
                                                           sample_size, self.TE, self.EE)
@@ -177,12 +185,15 @@ class Simulation:
                     for ss_config in self.sample_size_combinations:
                         config["anticipated_error_perc"] = ss_config["anticipated_error_perc"]
                         config["anticipated_std"] = ss_config["anticipated_std"]
+                        config["sweep"] = "sample_size_combination"
                         sample_size = calculate_n_from_formula(bound_estimator=config["bound_estimator"],
                                                                BV=self.BV,
                                                                z_score=z_score,
                                                                TE=self.TE,
                                                                std=ss_config["anticipated_std"]*ratio_EQ_std,
                                                                AE=ss_config["anticipated_error_perc"]*self.EE)
+                        sample_size = self._apply_min_sample_size(sample_size)
+                        config["sample_size"] = sample_size
 
                         reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
                                                           sample_size, self.TE,
@@ -221,7 +232,7 @@ class Simulation:
         if hv_selection == "iterative":
             hv_lookup = iterative_hv_selection(self.population, self.BV, sample_size)["HV"]
 
-        for i in tqdm(range(self.iterations)):
+        for i in range(self.iterations):
             random_state = (self.seed + config_idx * self.iterations + i)
 
             shuffled_population = shuffle(self.population, random_state=random_state)
@@ -303,6 +314,17 @@ class Simulation:
             "Average Precision Estimation": it_results["SE_pred"].mean(),
             "obs": None,
             }
+
+    def _apply_min_sample_size(self, sample_size: float) -> float:
+        """
+        Floor a finite formula-derived sample size at MIN_SAMPLE_SIZE. Left
+        untouched (including NaN) when non-finite, so an already-infeasible
+        Poisson_Stringer result still gets skipped by _infeasible_reason
+        instead of being silently promoted to a "valid" sample size.
+        """
+        if np.isfinite(sample_size) and sample_size < MIN_SAMPLE_SIZE:
+            return float(MIN_SAMPLE_SIZE)
+        return sample_size
 
     def _infeasible_reason(
         self, bound_estimator: str, hv_selection: str, sample_size: float, TE: float, AE: float

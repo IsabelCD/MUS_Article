@@ -29,10 +29,10 @@ Method, per scenario:
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from config import RANDOM_SEED
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+from config import RANDOM_SEED
 from config import DATA_DIR
 from simulation.inclusion_probability import iterative_hv_selection
 

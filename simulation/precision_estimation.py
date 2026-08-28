@@ -123,99 +123,84 @@ def precision_modified_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int
     return SE, VAR, ULE
 
 
-def precision_moment_bound(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float):
-    """
-    Moment bound (Dworin & Grimlund, 1984, 1986), as implemented (as an
-    experimental bound) by ``MUS.moment.bound`` in the R package ``MUS``.
-
-    Instead of relying on the central limit theorem (which under-covers when
-    the tainting distribution is highly skewed, as is typical in audit
-    populations with mostly-zero errors), the moment bound approximates the
-    *sampling distribution of the mean tainting* by a 3-parameter (shifted)
-    gamma distribution. Its three parameters are fit, by the method of
-    moments, to the first three sample moments of the observed taintings
-    (``ER`` = E / BV) taken over the *whole* sample (i.e. including the
-    zero-tainting, correctly-stated items) - mirroring the ``MUS`` package,
-    which fits the moment bound on the full tainting vector of the
-    evaluated sample.
-
-    Steps
-    -----
-    1. M1, M2, M3 = 1st raw / 2nd & 3rd central sample moments of ER
-       (M2, M3 use the biased, divide-by-n convention, as in the original
-       Dworin & Grimlund method-of-moments fit).
-    2. The sampling distribution of the mean tainting T-bar has (to this
-       order of approximation): mean = M1, variance = M2 / ns,
-       skewness = (M3 / M2**1.5) / sqrt(ns).
-    3. Fit a shifted Gamma(shape=k, scale=theta, shift=tau) to
-       (mean, variance, skewness) of T-bar via the standard gamma
-       method-of-moments relations:
-           k     = 4 / skewness**2
-           theta = sd * skewness / 2
-           tau   = mean - 2 * sd / skewness
-    4. The upper bound on the mean tainting at the confidence level implied
-       by ``z_score`` (confidence_level = Phi(z_score)) is
-           tau + theta * Gamma^{-1}(confidence_level; k)
-       and the upper bound on the total error is BVs times that quantity.
-
-    If the sample shows no (or negative) skewness -- e.g. a small,
-    zero-error sample -- the method falls back to the usual normal
-    (z_score) approximation, since the gamma method of moments is
-    undefined/unstable in that regime.
-
-    Parameters
-    ----------
-    sample_s : DataFrame with an 'ER' column (E / BV tainting) for every
-        sampled item (zeros included).
-    EE : point estimate of the total error.
-    BVs : total population book value.
-    ns : sample size.
-    z_score : normal quantile associated with the desired one-sided
-        confidence level (used both as the CLT fallback, and to fix the
-        confidence level for the gamma quantile via confidence_level =
-        Phi(z_score)).
-
-    Returns
-    -------
-    (SE, VAR, ULE)
-    """
-    taints = sample_s['ER'].to_numpy(dtype=float)
-    n = len(taints)
-
-    M1 = taints.mean()
-    M2 = np.mean((taints - M1) ** 2)
-    M3 = np.mean((taints - M1) ** 3)
-
-    mean_bar = M1
-    var_bar = M2 / n
-    sd_bar = np.sqrt(var_bar) if var_bar > 0 else 0.0
-
-    confidence_level = norm.cdf(z_score)
-
-    if sd_bar == 0:
-        # Degenerate sample (e.g. a zero-error sample): no dispersion to
-        # extrapolate a bound from.
-        SE = 0.0
-        VAR = 0.0
-        ULE = EE
+def precision_moment_bound(sample_s: pd.DataFrame, EE: float, BV: float, cl: float, SI: float = None):
+    if sample_s['E'].sum() == 0:
+        # Same zero-error fallback as precision_HH: with no non-zero
+        # taintings, `tall` below would be empty and its mean undefined.
+        basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
+        SE = SI * basic_rf  # This is equal to BP
+        VAR = 0
+        ULE = EE + SE
         return SE, VAR, ULE
 
-    skew_pop = M3 / (M2 ** 1.5)          # skewness of the individual taintings
-    skew_bar = skew_pop / np.sqrt(n)     # skewness of the sample mean (CLT scaling)
+    taints = np.asarray(sample_s['ER'], dtype=float)
 
-    if skew_bar <= 0:
-        # No usable positive skew: fall back to the normal approximation.
-        upper_mean = mean_bar + z_score * sd_bar
-    else:
-        k = 4.0 / (skew_bar ** 2)
-        theta = sd_bar * skew_bar / 2.0
-        tau = mean_bar - 2.0 * sd_bar / skew_bar
-        upper_mean = tau + theta * gamma_dist.ppf(confidence_level, k)
+    # Total number of observations
+    N = len(taints)
 
-    SE = BVs * (upper_mean - mean_bar)
-    VAR = var_bar * (BVs ** 2)
+    # Non-zero taintings
+    tall = taints[taints != 0]
+    n = len(tall)
 
+    # Hypothetical tainting
+    tstar = (
+        0.81
+        * (1 - 0.667 * np.tanh(10 * np.mean(tall)))
+        * (1 + 0.667 * np.tanh(n / 10))
+    )
+
+    # TN
+    ncm1_z = (tstar + np.sum(tall)) / (n + 1)
+    ncm2_z = (tstar**2 + np.sum(tall**2)) / (n + 1)
+    ncm3_z = (tstar**3 + np.sum(tall**3)) / (n + 1)
+
+    # RN
+    ncm1_e = (n + 1) / (N + 2)
+    ncm2_e = ncm1_e * (n + 2) / (N + 3)
+    ncm3_e = ncm2_e * (n + 3) / (N + 4)
+
+    # UN
+    ncm1_t = ncm1_e * ncm1_z
+
+    ncm2_t = (
+        ncm1_e * ncm2_z
+        + (N - 1) * ncm2_e * ncm1_z**2
+    ) / N
+
+    ncm3_t = (
+        ncm1_e * ncm3_z
+        + 3 * (N - 1) * ncm2_e * ncm1_z * ncm2_z
+        + (N - 1) * (N - 2) * ncm3_e * ncm1_z**3
+    ) / N**2
+
+    # UC
+    cm2_t = ncm2_t - ncm1_t**2
+    cm3_t = (
+        ncm3_t
+        - 3 * ncm1_t * ncm2_t
+        + 2 * ncm1_t**3
+    )
+
+    # A, B, G
+    A = 4 * cm2_t**3 / cm3_t**2
+    B = 0.5 * cm3_t / cm2_t
+    G = ncm1_t - 2 * cm2_t**2 / cm3_t
+
+    # One-sided upper confidence bound
+    Z = norm.ppf(cl)
+
+    ULE = G + A * B * (
+        1
+        + Z / np.sqrt(9 * A)
+        - 1 / (9 * A)
+    )**3
+
+    # transform into monetary value
+    ULE = ULE * BV
+
+    SE = ULE - EE
     ULE = EE + SE
+    VAR = 0
 
     return SE, VAR, ULE
 

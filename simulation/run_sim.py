@@ -339,11 +339,12 @@ class Simulation:
         # Needed sample size
         needed_n = (SE_true*np.sqrt(config_info["sample_size"])/(self.TE-self.EE))**2
 
-        if config_info["bound_estimator"] == "Poisson_Stringer":
+        if config_info["bound_estimator"] == "Poisson_Stringer" or config_info["bound_estimator"] == "Binomial_Stringer":
             formula_n = calculate_n_from_formula(bound_estimator=config_info["bound_estimator"], 
                                                 BV=self.BV, 
                                                 TE=self.TE, 
-                                                AE=self.EE)
+                                                AE=self.EE,
+                                                cl=config_info["confidence_level"])
         elif config_info["bound_estimator"] == "HH":
             formula_n = calculate_n_from_formula(bound_estimator=config_info["bound_estimator"], 
                                                 BV=self.BV, 

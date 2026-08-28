@@ -71,20 +71,19 @@ FEASIBILITY CHECK (this is the part relevant to your question):
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from config import RANDOM_SEED
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from config import DATA_DIR
+from config import DATA_DIR, RANDOM_SEED, POPULATION_CONFIGS
 
 # =========================== CONFIG =====================================
 INPUT_FILE = DATA_DIR / "book_value_populations.xlsx"
 INPUT_SHEET = 0                              # sheet name or index containing the 4 populations
 OUTPUT_FILE = DATA_DIR / "simulated_error_populations.xlsx"
 
-F_LEVELS = [0.05, 0.20, 0.50]                # error frequency levels
-CORR_LEVELS = [0.10, 0.25, 0.50]             # correlation levels
-R_LEVELS = [0.002, 0.01, 0.015, 0.025, 0.03, 0.05]  # error rate levels (% of total BV)
+F_LEVELS = POPULATION_CONFIGS["f_target"]                # error frequency levels
+CORR_LEVELS = POPULATION_CONFIGS["corr_target"]             # correlation levels
+R_LEVELS = POPULATION_CONFIGS["r_target"]  # error rate levels (% of total BV)
 
 CORR_TOLERANCE = 0.05 # flag a combo if achieved corr misses target by more than this
                       # (this can happen even when the TOTAL is feasible - see note below)

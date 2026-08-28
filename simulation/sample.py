@@ -155,7 +155,7 @@ class Sample:
         kwargs = {
             "sample_s": self.sample_s,
             "EE": self.EE_pred,
-            "cl": self.cl
+            "cl": self.cl,
         }
 
         if self.bound_estimator == "HH" or self.bound_estimator == "Mod_HH":
@@ -168,22 +168,19 @@ class Sample:
 
         elif self.bound_estimator == "Poisson_Stringer":
             kwargs.update({
-                "SI": self.SI,
-                "cl": self.cl
+                "SI": self.SI
             })
 
         elif self.bound_estimator == "Binomial_Stringer":
             kwargs.update({
                 "BV": self.BV,
-                "n": self.real_n
+                "n": self.sample_size
             })
 
         elif self.bound_estimator == "Moment":
-            del kwargs["cl"]
             kwargs.update({
-                "BVs": self.BVs,
-                "ns": self.ns,
-                "z_score": self.z_score,
+                "BV": self.BV,
+                "SI": self.SI,
             })
 
         self.SE, self.VAR, self.ULE = precision_estimator(

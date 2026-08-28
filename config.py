@@ -16,7 +16,7 @@ POPULATION_CONFIGS  = {
     "BV_pop": ["BV_5pct_above_SI", "BV_15pct_above_SI", "BV_30pct_above_SI"],
     "f_target": [0.05, 0.20, 0.50],
     "corr_target": [0.10, 0.25, 0.50],
-    "r_target": [0.002, 0.01, 0.015, 0.025, 0.03, 0.05]
+    "r_target": [0.002, 0.01, 0.03, 0.04]
 }
 
 # Configuration for each sampling method
