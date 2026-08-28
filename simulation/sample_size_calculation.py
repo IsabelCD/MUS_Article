@@ -38,7 +38,7 @@ def sample_size_binomial_stringer(BV: float, AE: float, TE: float, cl: float):
     if TE <= AE * EF:
         return np.nan
     else:
-        formula_n = np.log(1 - cl) / np.log(1 - (TE - AE * EF) / BV)
+        formula_n = np.log(1 - cl) / np.log(1 - TE / BV)
         return formula_n
 
 
