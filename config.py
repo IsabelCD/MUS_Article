@@ -104,6 +104,12 @@ SAMPLE_PLANNING_SIMULATION_SETTINGS = {
         },
         {
             "method": "MUS",
+            "hv_selection": "nothing",
+            "selection_type": "systematic_sampling",
+            "bound_estimator": "Binomial_Stringer",
+        },
+        {
+            "method": "MUS",
             "hv_selection": "iterative",
             "selection_type": "systematic_sampling",
             "bound_estimator": "HH",
