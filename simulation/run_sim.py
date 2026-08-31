@@ -18,7 +18,6 @@ Entry point
 
 import pandas as pd
 import numpy as np
-from tqdm import tqdm
 
 from pathlib import Path
 from itertools import product
@@ -108,7 +107,7 @@ class Simulation:
         combination_idx = 0
 
         for base_config in self.simulation_configs:
-            print(f"Starting configuration {combination_idx+1}/{nr_configs}")
+            #print(f"Starting configuration {combination_idx+1}/{nr_configs}")
             config = base_config.copy()
 
             for sample_size, cl in product(self.sample_sizes, self.confidence_levels):
@@ -146,7 +145,7 @@ class Simulation:
         if hv_selection == "iterative":
             hv_lookup = iterative_hv_selection(self.population, self.BV, sample_size)["HV"]
 
-        for i in tqdm(range(self.iterations)):
+        for i in range(self.iterations):
             random_state = (self.seed + config_idx * self.iterations + i)
 
             shuffled_population = shuffle(self.population, random_state=random_state)

@@ -3,6 +3,7 @@ from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
+from tqdm import tqdm
 
 import xlsxwriter
 from config import *
@@ -71,7 +72,11 @@ def main(max_workers: int | None = None):
             executor.submit(_run_one_population, cfg, pop): cfg
             for cfg, pop in zip(population_configs, populations)
         }
-        for future in as_completed(futures):
+        for future in tqdm(
+            as_completed(futures),
+            total=len(futures),
+            desc="Processing populations",
+        ):
             cfg = futures[future]
             try:
                 path = future.result()

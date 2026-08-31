@@ -59,43 +59,42 @@ def precision_poisson_stringer(
 def precision_binomial_stringer(
     sample_s: pd.DataFrame,
     EE: float,
-    BV: float,
+    SI: float,
     cl: float,
-    n: int,
 ):
+
     errors = (
-            sample_s.loc[
-                (sample_s["E"] != 0),
-                ["ER"],
-            ]
-            .copy()
-            .sort_values("ER", ascending=False)
-            .reset_index(drop=True)
-        )
-    
+        sample_s.loc[
+            (sample_s["E"] != 0),
+            ["ER"],
+        ]
+        .copy()
+        .sort_values("ER", ascending=False)
+        .reset_index(drop=True)
+    )
+
     taints = errors["ER"].to_numpy(dtype=float)
 
-    BP = (1 - (1 - cl) ** (1 / n))
+    n = len(sample_s)
+
+    basic_rf = n * beta_dist.ppf(q=cl, a=1, b=n,)
+
+    BP = SI * basic_rf
 
     ranks = np.arange(1, len(taints) + 1)
 
-    # p_k^U = Beta^-1(cl; k+1, n-k) is undefined at k=n (every sampled item
-    # tainted): shape2 = n-k = 0. The analytical limit is 1 exactly, since an
-    # error rate cannot exceed 1 -- substitute it there instead of letting it
-    # evaluate to NaN. (This can only occur at the single largest rank, and
-    # only when every sampled item is tainted; the second term below never
-    # hits shape2=0 since n-(k-1) >= 1 for all k in [1, n].)
-    b_first = n - ranks
-    first_term = np.where(
-        b_first == 0,
-        1.0,
-        beta_dist.ppf(q=cl, a=ranks + 1, b=np.where(b_first == 0, 1, b_first)),
+    incremental_factors = (
+        n * (
+            beta_dist.ppf(q=cl, a=ranks + 1, b=n - ranks,) - 
+            beta_dist.ppf( q=cl, a=ranks, b=n - ranks + 1, )
+        )
+        - 1
     )
-    incremental_factors = first_term - beta_dist.ppf(q=cl, a=ranks, b=n - (ranks-1))
+    incremental_factors = np.where(incremental_factors==np.nan, n, incremental_factors)
 
-    IA = np.dot(incremental_factors, taints)
+    IA = SI * np.dot(incremental_factors, taints)
 
-    SE = (BP + IA) * BV
+    SE = BP + IA
     ULE = EE + SE
     VAR = 0
 
