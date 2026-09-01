@@ -83,14 +83,22 @@ def precision_binomial_stringer(
 
     ranks = np.arange(1, len(taints) + 1)
 
-    incremental_factors = (
-        n * (
-            beta_dist.ppf(q=cl, a=ranks + 1, b=n - ranks,) - 
-            beta_dist.ppf( q=cl, a=ranks, b=n - ranks + 1, )
-        )
-        - 1
+    # p_k^U = Beta^-1(cl; k+1, n-k) is undefined at k=n (every sampled item
+    # tainted): shape2 = n-k = 0. The analytical limit is 1 exactly, since an
+    # error rate cannot exceed 1 -- in this n-scaled convention that means
+    # the first term becomes n*1 = n there, instead of NaN. (Only the first
+    # term can hit this: the second term's shape2 = n-(k-1) >= 1 always.)
+    # NB the previous version of this fix used `incremental_factors==np.nan`,
+    # which is always False (NaN never equals anything, including itself)
+    # and so never actually replaced anything -- `np.where` on the boolean
+    # b_first==0 mask (computed before the NaN appears) avoids that trap.
+    first_term = np.where(
+        ranks < n,
+        n * beta_dist.ppf(q=cl, a=ranks + 1, b=n - ranks,),
+        n,
     )
-    incremental_factors = np.where(incremental_factors==np.nan, n, incremental_factors)
+    second_term = n * beta_dist.ppf(q=cl, a=ranks, b=n - ranks + 1)
+    incremental_factors = first_term - second_term - 1
 
     IA = SI * np.dot(incremental_factors, taints)
 

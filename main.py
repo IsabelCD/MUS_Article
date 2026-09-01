@@ -13,7 +13,7 @@ from create_population.import_population import import_population
 
 def _population_id(population_config: dict) -> str:
     return (
-        f"BV{population_config['BV_pop']}_F{population_config['f_target']}"
+        f"{population_config['BV_pop']}_F{population_config['f_target']}"
         f"_C{population_config['corr_target']}_R{population_config['r_target']}"
     )
 

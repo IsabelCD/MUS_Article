@@ -27,7 +27,7 @@ def aggregate_metrics(metrics_df: pd.DataFrame, analysis: str = "main", TE_perc:
     if analysis =="main":
         # Calculate the relative/% version of the metrics
         metrics_df["Relative Bias of Error Estimation"] = metrics_df["Bias of Error Estimation"] / metrics_df["Average Error Estimation"]
-        metrics_df["Relative Precision of Error Estimation"] = metrics_df["Precision of Error Estimation"] / metrics_df["Population Error Amount"]
+        metrics_df["Relative Precision of Error Estimation"] = metrics_df["Precision of Error Estimation"] / metrics_df["Average Error Estimation"]
         metrics_df["Precision of Error Estimation in %"] = metrics_df["Precision of Error Estimation"] / metrics_df["Population Book Value"]
         metrics_df["Relative Bias of Precision Estimation"] = metrics_df["Bias of Precision Estimation"] / metrics_df["Average Precision Estimation"]
         metrics_df["Relative Precision of Precision Estimation"] = metrics_df["Precision of Precision Estimation"] / metrics_df["Average Precision Estimation"]
