@@ -93,6 +93,7 @@ class Sample:
         self.VAR = None
         self.ULE = None
         self.number_errors = None
+        self.EEe = None
 
 
     def assign_hv(self):
@@ -143,12 +144,12 @@ class Sample:
         self.sample_s = self.sample[self.sample["HV"] != 1].copy()
 
         # error in certainty stratum
-        EEe = sum(self.sample[self.sample["HV"]==1]['E'])         
+        self.EEe = sum(self.sample[self.sample["HV"]==1]['E'])         
         # projected error in sampling stratum
         self.sample_s["EQ_ratio"] = self.sample_s["E"] / self.sample_s["BV"]
         EEs = self.SI * self.sample_s["EQ_ratio"].sum() 
         # error estimation    
-        self.EE_pred = EEe + EEs
+        self.EE_pred = self.EEe + EEs
 
 
     def obtain_precision(self):
@@ -181,6 +182,7 @@ class Sample:
             kwargs.update({
                 "BV": self.BV,
                 "SI": self.SI,
+                "EEe": self.EEe
             })
 
         self.SE, self.VAR, self.ULE = precision_estimator(

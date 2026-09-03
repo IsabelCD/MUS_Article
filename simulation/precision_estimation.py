@@ -132,7 +132,12 @@ def precision_modified_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int
     return SE, VAR, ULE
 
 
-def precision_moment_bound(sample_s: pd.DataFrame, EE: float, BV: float, cl: float, SI: float = None):
+def precision_moment_bound(sample_s: pd.DataFrame, 
+                           EE: float, 
+                           BV: float, 
+                           cl: float, 
+                           EEe: float,
+                           SI: float = None):
     if sample_s['E'].sum() == 0:
         # Same zero-error fallback as precision_HH: with no non-zero
         # taintings, `tall` below would be empty and its mean undefined.
@@ -205,10 +210,9 @@ def precision_moment_bound(sample_s: pd.DataFrame, EE: float, BV: float, cl: flo
     )**3
 
     # transform into monetary value
-    ULE = ULE * BV
+    ULE = EEe + ULE * BV
 
     SE = ULE - EE
-    ULE = EE + SE
     VAR = 0
 
     return SE, VAR, ULE
