@@ -166,9 +166,15 @@ class Sample:
                 "SI": self.SI,
             })
 
-        elif self.bound_estimator == "Poisson_Stringer" or self.bound_estimator == "Binomial_Stringer":
+        elif self.bound_estimator == "Poisson_Stringer":
             kwargs.update({
                 "SI": self.SI
+            })
+
+        elif self.bound_estimator == "Binomial_Stringer":
+            kwargs.update({
+                "SI": self.SI,
+                "sample_size": self.sample_size
             })
 
         elif self.bound_estimator == "Moment":

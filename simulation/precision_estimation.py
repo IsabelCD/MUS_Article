@@ -26,17 +26,8 @@ def precision_poisson_stringer(
     cl: float,
 ):
 
-    errors = (
-        sample_s.loc[
-            (sample_s["E"] != 0),
-            ["ER"],
-        ]
-        .copy()
-        .sort_values("ER", ascending=False)
-        .reset_index(drop=True)
-    )
-
-    taints = errors["ER"].to_numpy(dtype=float)
+    taints = sample_s["ER"].to_numpy(dtype=float)
+    taints = np.sort(taints[taints > 0])[::-1]
 
     basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
 
@@ -54,6 +45,12 @@ def precision_poisson_stringer(
     ULE = EE + SE
     VAR = 0
 
+    if SE < 0:
+            raise ValueError(
+                f"Negative Poisson Stringer precision ({SE}). "
+                "Check EE, SI, cl, and the definition of ER."
+            )
+
     return SE, VAR, ULE
 
 def precision_binomial_stringer(
@@ -61,23 +58,13 @@ def precision_binomial_stringer(
     EE: float,
     SI: float,
     cl: float,
+    sample_size: int
 ):
 
-    errors = (
-        sample_s.loc[
-            (sample_s["E"] != 0),
-            ["ER"],
-        ]
-        .copy()
-        .sort_values("ER", ascending=False)
-        .reset_index(drop=True)
-    )
+    taints = sample_s["ER"].to_numpy(dtype=float)
+    taints = np.sort(taints[taints > 0])[::-1]
 
-    taints = errors["ER"].to_numpy(dtype=float)
-
-    n = len(sample_s)
-
-    basic_rf = n * beta_dist.ppf(q=cl, a=1, b=n,)
+    basic_rf = sample_size * beta_dist.ppf(q=cl, a=1, b=sample_size,)
 
     BP = SI * basic_rf
 
@@ -88,16 +75,16 @@ def precision_binomial_stringer(
     # error rate cannot exceed 1 -- in this n-scaled convention that means
     # the first term becomes n*1 = n there, instead of NaN. (Only the first
     # term can hit this: the second term's shape2 = n-(k-1) >= 1 always.)
-    # NB the previous version of this fix used `incremental_factors==np.nan`,
+    # NB the previous version of this fix used incremental_factors==np.nan,
     # which is always False (NaN never equals anything, including itself)
-    # and so never actually replaced anything -- `np.where` on the boolean
+    # and so never actually replaced anything -- np.where on the boolean
     # b_first==0 mask (computed before the NaN appears) avoids that trap.
     first_term = np.where(
-        ranks < n,
-        n * beta_dist.ppf(q=cl, a=ranks + 1, b=n - ranks,),
-        n,
+        ranks < sample_size,
+        sample_size * beta_dist.ppf(q=cl, a=ranks + 1, b=sample_size - ranks,),
+        sample_size,
     )
-    second_term = n * beta_dist.ppf(q=cl, a=ranks, b=n - ranks + 1)
+    second_term = sample_size * beta_dist.ppf(q=cl, a=ranks, b=sample_size - ranks + 1)
     incremental_factors = first_term - second_term - 1
 
     IA = SI * np.dot(incremental_factors, taints)
@@ -106,8 +93,13 @@ def precision_binomial_stringer(
     ULE = EE + SE
     VAR = 0
 
-    return SE, VAR, ULE
+    if SE < 0:
+            raise ValueError(
+                f"Negative Binomial Stringer precision ({SE}). "
+                "Check EE, SI, cl, and the definition of ER."
+            )
 
+    return SE, VAR, ULE
 
 def precision_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float, cl: float, SI: float = None):
     # of population 
