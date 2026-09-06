@@ -210,4 +210,8 @@ class Sample:
             "ULE_pred": self.ULE,
             "real_n": self.real_n, 
             "number_errors": self.number_errors,
+            "sample_std_dev": self.sample_s["E"].std(ddof=1),
+            "sample_mean": self.sample_s["E"].mean(),
+            "sample_min": self.sample_s["E"].min(),
+            "sample_max": self.sample_s["E"].max(),
         }

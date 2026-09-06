@@ -268,7 +268,7 @@ class Simulation:
 
             combo_predictions.append(prediction)
 
-        combo_predictions_df = pd.DataFrame.from_records(combo_predictions)
+        combo_predictions_df = pd.DataFrame.from_records(combo_predictions, z_score=z_score)
 
         validation_NAs(combo_predictions_df)
 
@@ -280,10 +280,11 @@ class Simulation:
     # Metrics
     # ------------------------------------------------------------------
 
-    def _metrics_for_method(self, it_results: pd.DataFrame) -> dict:
+    def _metrics_for_method(self, it_results: pd.DataFrame, z_score: float) -> dict:
         """Compute and assemble all metrics for one combination"""
         #True population parameters
         EE_pred = it_results["EE_pred"]
+        SE_true = z_score * np.sqrt(EE_pred.var(ddof=1))
 
         # Coverage
         coverage = sum(it_results['ULE_pred']>=self.EE)/self.iterations
@@ -305,6 +306,10 @@ class Simulation:
             "Population Book Value": BV_true,
             "Population Error Amount": self.EE,
             "Population Error Rate": ER_true,
+            "Average Error Estimation": it_results["EE_pred"].mean(), 
+            "STD of Error Estimation": it_results["EE_pred"].std(ddof=1),
+            "Precision of Error Estimation": SE_true,
+            "Average Precision Estimation": it_results["SE_pred"].mean(),
             "Coverage": coverage,
             "Inconclusive": inconclusive,
             "Samples without Errors": samples_without_errors,

@@ -206,6 +206,7 @@ class Simulation:
             "Population Error Amount": self.EE,
             "Population Error Rate": ER_true,
             "Average Error Estimation": it_results["EE_pred"].mean(), 
+            "STD of Error Estimation": it_results["EE_pred"].std(ddof=1),
             "Bias of Error Estimation": Bias_EE,
             "Precision of Error Estimation": SE_true,
             "Accuracy of Error Estimation": accuracy_true,
@@ -218,8 +219,13 @@ class Simulation:
             "Rate of Acceptance": rate_of_acceptance,
             "Rate of Rejection": rate_of_rejection,
             "Samples without Errors": samples_without_errors,
+            "Real n": it_results["real_n"].mean(),
             "Needed n": needed_n,
             "Formula n": formula_n,
+            "Sample STD Dev": it_results["sample_std_dev"].mean(),
+            "Sample Mean": it_results["sample_mean"].mean(),
+            "Sample Min": it_results["sample_min"].min(),
+            "Sample Max": it_results["sample_max"].max(),
             "Skew": skew
             }
             
