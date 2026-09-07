@@ -268,11 +268,11 @@ class Simulation:
 
             combo_predictions.append(prediction)
 
-        combo_predictions_df = pd.DataFrame.from_records(combo_predictions, z_score=z_score)
+        combo_predictions_df = pd.DataFrame.from_records(combo_predictions)
 
         validation_NAs(combo_predictions_df)
 
-        metrics = self._metrics_for_method(combo_predictions_df)
+        metrics = self._metrics_for_method(combo_predictions_df, config=config)
 
         return combo_predictions, metrics
     
@@ -280,11 +280,11 @@ class Simulation:
     # Metrics
     # ------------------------------------------------------------------
 
-    def _metrics_for_method(self, it_results: pd.DataFrame, z_score: float) -> dict:
+    def _metrics_for_method(self, it_results: pd.DataFrame, config: dict) -> dict:
         """Compute and assemble all metrics for one combination"""
         #True population parameters
         EE_pred = it_results["EE_pred"]
-        SE_true = z_score * np.sqrt(EE_pred.var(ddof=1))
+        SE_true = config["z_score"] * np.sqrt(EE_pred.var(ddof=1))
 
         # Coverage
         coverage = sum(it_results['ULE_pred']>=self.EE)/self.iterations
@@ -301,6 +301,10 @@ class Simulation:
         BV_true = self.BV
         ER_true = self.EE / BV_true
 
+        if config["bound_estimator"] == "HH":
+            UB = np.where(it_results["SE_HH"] != 0, it_results["EE_pred"] + it_results["SE_HH"], 0)
+            coverage_original = sum(UB >= self.EE) / self.iterations
+            rate_of_acceptance_original = sum(UB <= self.TE) / self.iterations
 
         return {"Population ID": self.population_ID,
             "Population Book Value": BV_true,
@@ -317,6 +321,8 @@ class Simulation:
             "Rate of Rejection": rate_of_rejection,
             "Average Error Estimation": it_results["EE_pred"].mean(),
             "Average Precision Estimation": it_results["SE_pred"].mean(),
+            "Coverage (HH Original)": coverage_original if config["bound_estimator"] == "HH" else None,
+            "Rate of Acceptance (HH Original)": rate_of_acceptance_original if config["bound_estimator"] == "HH" else None,
             "obs": None,
             }
 

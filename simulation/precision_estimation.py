@@ -43,7 +43,6 @@ def precision_poisson_stringer(
 
     SE = BP + IA
     ULE = EE + SE
-    VAR = 0
 
     if SE < 0:
             raise ValueError(
@@ -51,7 +50,7 @@ def precision_poisson_stringer(
                 "Check EE, SI, cl, and the definition of ER."
             )
 
-    return SE, VAR, ULE
+    return SE, "", ULE
 
 def precision_binomial_stringer(
     sample_s: pd.DataFrame,
@@ -91,7 +90,6 @@ def precision_binomial_stringer(
 
     SE = BP + IA
     ULE = EE + SE
-    VAR = 0
 
     if SE < 0:
             raise ValueError(
@@ -99,23 +97,25 @@ def precision_binomial_stringer(
                 "Check EE, SI, cl, and the definition of ER."
             )
 
-    return SE, VAR, ULE
+    return SE, "", ULE
 
 def precision_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float, cl: float, SI: float = None):
     # of population 
     sample_s['E/BV'] = sample_s['E'] / sample_s['BV']
     sr = np.std(sample_s['E/BV'], ddof=1) 
-    SE = z_score * sr * BVs / np.sqrt(ns)
+    SE_main = z_score * sr * BVs / np.sqrt(ns)
 
-    if sample_s['E'].sum() == 0:
-        basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
-        SE = SI*basic_rf # This is equal to BP
+    # alternative bound
+    basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
+    SE_piso = SI*basic_rf # This is equal to BP
+
+    SE = max(SE_main, SE_piso)
 
     # Save Variance of estimator
-    VAR = ((sr * BVs)**2) / ns
-    ULE = EE + SE  
+    #VAR = ((sr * BVs)**2) / ns
+    ULE = EE + SE
 
-    return SE, VAR, ULE 
+    return SE, SE_main, ULE 
 
 def precision_modified_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float, cl: float, SI: float = None):
     sr = np.std(sample_s['ER'], ddof=1) 
@@ -126,15 +126,15 @@ def precision_modified_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int
         SE = SI*basic_rf # This is equal to BP
     
     # Save Variance of estimator
-    VAR = ((sr * BVs)**2) / ns
+    #VAR = ((sr * BVs)**2) / ns
     ULE = EE + SE
 
-    return SE, VAR, ULE
+    return SE, "", ULE
 
 
 def precision_moment_bound(sample_s: pd.DataFrame, 
                            EE: float, 
-                           BV: float, 
+                           BVs: float, 
                            cl: float, 
                            EEe: float,
                            SI: float = None):
@@ -143,9 +143,8 @@ def precision_moment_bound(sample_s: pd.DataFrame,
         # taintings, `tall` below would be empty and its mean undefined.
         basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
         SE = SI * basic_rf  # This is equal to BP
-        VAR = 0
         ULE = EE + SE
-        return SE, VAR, ULE
+        return SE, "", ULE
 
     taints = np.asarray(sample_s['ER'], dtype=float)
 
@@ -210,12 +209,11 @@ def precision_moment_bound(sample_s: pd.DataFrame,
     )**3
 
     # transform into monetary value
-    ULE = EEe + ULE * BV
+    ULE = EEe + ULE * BVs
 
     SE = ULE - EE
-    VAR = 0
 
-    return SE, VAR, ULE
+    return SE, "", ULE
 
 
 def precision_estimator(bound_estimator, **kwargs):

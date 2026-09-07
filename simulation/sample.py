@@ -90,7 +90,7 @@ class Sample:
         #Prediction results
         self.EE_pred = None
         self.SE = None
-        self.VAR = None
+        self.SE_HH = None
         self.ULE = None
         self.number_errors = None
         self.EEe = None
@@ -180,12 +180,12 @@ class Sample:
 
         elif self.bound_estimator == "Moment":
             kwargs.update({
-                "BV": self.BV,
+                "BVs": self.BVs,
                 "SI": self.SI,
                 "EEe": self.EEe
             })
 
-        self.SE, self.VAR, self.ULE = precision_estimator(
+        self.SE, self.SE_HH, self.ULE = precision_estimator(
             bound_estimator=self.bound_estimator,
             **kwargs,
         )
@@ -206,7 +206,6 @@ class Sample:
         return {
             "EE_pred": self.EE_pred,
             "SE_pred": self.SE,
-            "VAR_pred": self.VAR,
             "ULE_pred": self.ULE,
             "real_n": self.real_n, 
             "number_errors": self.number_errors,
@@ -214,4 +213,5 @@ class Sample:
             "sample_mean": self.sample_s["E"].mean(),
             "sample_min": self.sample_s["E"].min(),
             "sample_max": self.sample_s["E"].max(),
+            "SE_HH": self.SE_HH
         }

@@ -200,6 +200,11 @@ class Simulation:
         BV_true = self.BV
         ER_true = self.EE / BV_true
 
+        if config_info["bound_estimator"] == "HH":
+            UB = np.where(it_results["SE_HH"] != 0, it_results["EE_pred"] + it_results["SE_HH"], 0)
+            coverage_original = sum(UB >= self.EE) / self.iterations
+            rate_of_acceptance_original = sum(UB <= self.TE) / self.iterations
+
 
         return {"Population ID": self.population_ID, 
             "Population Book Value": BV_true,
@@ -226,7 +231,9 @@ class Simulation:
             "Sample Mean": it_results["sample_mean"].mean(),
             "Sample Min": it_results["sample_min"].min(),
             "Sample Max": it_results["sample_max"].max(),
-            "Skew": skew
+            "Skew": skew,
+            "Coverage (HH Original)": coverage_original if config_info["bound_estimator"] == "HH" else None,
+            "Rate of Acceptance (HH Original)": rate_of_acceptance_original if config_info["bound_estimator"] == "HH" else None
             }
             
 
@@ -303,13 +310,7 @@ class Simulation:
         """
         SE_pred = it_results["SE_pred"]
 
-        if bound_estimator == "HH":
-            # Standard: use variance-based final estimate
-            final_estimated_precision = z_score * np.sqrt(it_results["VAR_pred"].mean())
-            Bias_SE = final_estimated_precision - SE_true
-            
-        else:
-            Bias_SE = SE_pred.mean() - SE_true
+        Bias_SE = SE_pred.mean() - SE_true
 
         # Precision of Precision
         SE_of_SE = z_score * SE_pred.std(ddof=1)
