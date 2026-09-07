@@ -201,7 +201,7 @@ class Simulation:
         ER_true = self.EE / BV_true
 
         if config_info["bound_estimator"] == "HH":
-            UB = np.where(it_results["SE_HH"] != 0, it_results["EE_pred"] + it_results["SE_HH"], 0)
+            UB = np.where(it_results["number_errors"] != 0, it_results["ULE_HH"], 0)
             coverage_original = sum(UB >= self.EE) / self.iterations
             rate_of_acceptance_original = sum(UB <= self.TE) / self.iterations
 

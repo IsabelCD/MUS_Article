@@ -44,7 +44,7 @@ def sample_size_binomial_stringer(BV: float, AE: float, TE: float, cl: float):
 
 
 def sample_size_HH(BV: float, z_score: float, TE: float, std: float, AE: float):
-    formula_n = ((z_score*BV*np.mean(std))/(TE-AE))**2 
+    formula_n = ((z_score*BV*std)/(TE-AE))**2 
     return math.ceil(formula_n) 
 
 

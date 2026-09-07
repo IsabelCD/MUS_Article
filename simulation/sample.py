@@ -90,7 +90,7 @@ class Sample:
         #Prediction results
         self.EE_pred = None
         self.SE = None
-        self.SE_HH = None
+        self.ULE_HH = None
         self.ULE = None
         self.number_errors = None
         self.EEe = None
@@ -161,6 +161,7 @@ class Sample:
 
         if self.bound_estimator == "HH" or self.bound_estimator == "Mod_HH":
             kwargs.update({
+                "EEe": self.EEe,
                 "BVs": self.BVs,
                 "ns": self.ns,
                 "z_score": self.z_score,
@@ -185,7 +186,7 @@ class Sample:
                 "EEe": self.EEe
             })
 
-        self.SE, self.SE_HH, self.ULE = precision_estimator(
+        self.SE, self.ULE_HH, self.ULE = precision_estimator(
             bound_estimator=self.bound_estimator,
             **kwargs,
         )
@@ -213,5 +214,5 @@ class Sample:
             "sample_mean": self.sample_s["E"].mean(),
             "sample_min": self.sample_s["E"].min(),
             "sample_max": self.sample_s["E"].max(),
-            "SE_HH": self.SE_HH
+            "ULE_HH": self.ULE_HH
         }

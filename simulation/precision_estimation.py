@@ -99,37 +99,64 @@ def precision_binomial_stringer(
 
     return SE, "", ULE
 
-def precision_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float, cl: float, SI: float = None):
+def precision_HH(sample_s: pd.DataFrame, 
+                 EE: float, 
+                 EEe: float,
+                 BVs: float, 
+                 ns: int, 
+                 z_score: float, 
+                 cl: float, 
+                 SI: float = None
+                 ):
     # of population 
     sample_s['E/BV'] = sample_s['E'] / sample_s['BV']
     sr = np.std(sample_s['E/BV'], ddof=1) 
     SE_main = z_score * sr * BVs / np.sqrt(ns)
 
     # alternative bound
-    basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
-    SE_piso = SI*basic_rf # This is equal to BP
+    basic_rf = sample_s.shape[0] * beta_dist.ppf(q=cl, a=1, b=sample_s.shape[0],)
+    SE_spec = SI * basic_rf # This is equal to BP
 
-    SE = max(SE_main, SE_piso)
+    # define the Upper limit of error by the two rules
+    ULE_main = EE + SE_main
+    ULE_spec = EEe + SE_spec
 
-    # Save Variance of estimator
-    #VAR = ((sr * BVs)**2) / ns
-    ULE = EE + SE
+    # Save the one that is highest, and update the SE accordingly. 
+    # This is the one that will be used for coverage and acceptance rate calculations.
+    ULE = max(ULE_main, ULE_spec)
+    ULE_name = "main" if ULE_main >= ULE_spec else "spec"
+    SE = SE_main if ULE_name == "main" else SE_spec
 
-    return SE, SE_main, ULE 
+    return SE, ULE_main, ULE 
 
-def precision_modified_HH(sample_s: pd.DataFrame, EE: float, BVs: float, ns: int, z_score: float, cl: float, SI: float = None):
+
+def precision_modified_HH(sample_s: pd.DataFrame, 
+                 EE: float, 
+                 EEe: float,
+                 BVs: float, 
+                 ns: int, 
+                 z_score: float, 
+                 cl: float, 
+                 SI: float = None
+                 ):
     sr = np.std(sample_s['ER'], ddof=1) 
-    SE = z_score * sr * BVs * np.sqrt((BVs-sample_s['BV'].sum())/BVs) / np.sqrt(ns)
-
-    if sample_s['E'].sum() == 0:
-        basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
-        SE = SI*basic_rf # This is equal to BP
+    SE_main = z_score * sr * BVs * np.sqrt((BVs-sample_s['BV'].sum())/BVs) / np.sqrt(ns)
     
-    # Save Variance of estimator
-    #VAR = ((sr * BVs)**2) / ns
-    ULE = EE + SE
+    # alternative bound
+    basic_rf = sample_s.shape[0] * beta_dist.ppf(q=cl, a=1, b=sample_s.shape[0],)
+    SE_spec = SI * basic_rf # This is equal to BP
 
-    return SE, "", ULE
+    # define the Upper limit of error by the two rules
+    ULE_main = EE + SE_main
+    ULE_spec = EEe + SE_spec
+
+    # Save the one that is highest, and update the SE accordingly. 
+    # This is the one that will be used for coverage and acceptance rate calculations.
+    ULE = max(ULE_main, ULE_spec)
+    ULE_name = "main" if ULE_main >= ULE_spec else "spec"
+    SE = SE_main if ULE_name == "main" else SE_spec
+
+    return SE, ULE_main, ULE
 
 
 def precision_moment_bound(sample_s: pd.DataFrame, 
@@ -141,10 +168,10 @@ def precision_moment_bound(sample_s: pd.DataFrame,
     if sample_s['E'].sum() == 0:
         # Same zero-error fallback as precision_HH: with no non-zero
         # taintings, `tall` below would be empty and its mean undefined.
-        basic_rf = gamma_dist.ppf(q=cl, a=1, scale=1)
-        SE = SI * basic_rf  # This is equal to BP
-        ULE = EE + SE
-        return SE, "", ULE
+        basic_rf = sample_s.shape[0] * beta_dist.ppf(q=cl, a=1, b=sample_s.shape[0],)
+        SE_spec = SI * basic_rf
+        ULE_spec = EEe + SE_spec
+        return SE_spec, 0, ULE_spec
 
     taints = np.asarray(sample_s['ER'], dtype=float)
 

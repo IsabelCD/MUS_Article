@@ -135,7 +135,7 @@ class Simulation:
                                                                TE=self.TE,
                                                                std=ratio_EQ_std,
                                                                AE=anticipated_error*self.EE)
-                    sample_size = self._apply_min_sample_size(sample_size)
+                        sample_size = self._apply_min_sample_size(sample_size)
                     config["sample_size"] = sample_size
 
                     reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
@@ -302,7 +302,7 @@ class Simulation:
         ER_true = self.EE / BV_true
 
         if config["bound_estimator"] == "HH":
-            UB = np.where(it_results["SE_HH"] != 0, it_results["EE_pred"] + it_results["SE_HH"], 0)
+            UB = np.where(it_results["number_errors"] != 0, it_results["ULE_HH"], 0)
             coverage_original = sum(UB >= self.EE) / self.iterations
             rate_of_acceptance_original = sum(UB <= self.TE) / self.iterations
 
