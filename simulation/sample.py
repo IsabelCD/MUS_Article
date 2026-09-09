@@ -179,10 +179,9 @@ class Sample:
                 "sample_size": self.sample_size
             })
 
-        elif self.bound_estimator == "Moment":
+        elif self.bound_estimator == "Moment" or self.bound_estimator == "Moment_jfa_inventory" or self.bound_estimator == "Moment_jfa_accounts":
             kwargs.update({
                 "BVs": self.BVs,
-                "SI": self.SI,
                 "EEe": self.EEe
             })
 

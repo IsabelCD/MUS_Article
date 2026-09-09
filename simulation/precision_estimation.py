@@ -163,15 +163,8 @@ def precision_moment_bound(sample_s: pd.DataFrame,
                            EE: float, 
                            BVs: float, 
                            cl: float, 
-                           EEe: float,
-                           SI: float = None):
-    if sample_s['E'].sum() == 0:
-        # Same zero-error fallback as precision_HH: with no non-zero
-        # taintings, `tall` below would be empty and its mean undefined.
-        basic_rf = sample_s.shape[0] * beta_dist.ppf(q=cl, a=1, b=sample_s.shape[0],)
-        SE_spec = SI * basic_rf
-        ULE_spec = EEe + SE_spec
-        return SE_spec, 0, ULE_spec
+                           EEe: float
+                           ):
 
     taints = np.asarray(sample_s['ER'], dtype=float)
 
@@ -183,9 +176,10 @@ def precision_moment_bound(sample_s: pd.DataFrame,
     n = len(tall)
 
     # Hypothetical tainting
+    mean_tall = np.mean(tall) if n > 0 else 0.0
     tstar = (
         0.81
-        * (1 - 0.667 * np.tanh(10 * np.mean(tall)))
+        * (1 - 0.667 * np.tanh(10 * mean_tall))
         * (1 + 0.667 * np.tanh(n / 10))
     )
 
@@ -243,6 +237,178 @@ def precision_moment_bound(sample_s: pd.DataFrame,
     return SE, "", ULE
 
 
+
+def precision_moment_bound_jfa_inventory(sample_s: pd.DataFrame,
+                           EE: float,
+                           BVs: float,
+                           cl: float,
+                           EEe: float
+                           ):
+    """
+    Moment bound, m.type="inventory" variant from jfa's .moment() (R/methods.R,
+    koenderks/jfa). Identical Cornish-Fisher machinery to precision_moment_bound
+    (jfa's m.type="accounts"); the only difference is the hypothetical-tainting
+    term tstar, which drops the (1 + 0.667*tanh(n/10)) factor and uses
+    abs(mean(tall)) instead of mean(tall) -- unlike "accounts", this keeps
+    tstar bounded at 0.81 regardless of taint count or sign, rather than
+    letting it grow past 1 (a physically impossible taint) as errors
+    accumulate. Matches jfa in not special-casing zero errors: tstar falls
+    back to 0.81*(1-0.667*tanh(0)) = 0.81 and the same formula runs through
+    unchanged, rather than substituting a different bound entirely.
+    """
+
+    taints = np.asarray(sample_s['ER'], dtype=float)
+
+    # Total number of observations
+    N = len(taints)
+
+    # Non-zero taintings
+    tall = taints[taints != 0]
+    n = len(tall)
+
+    # Hypothetical tainting (jfa m.type="inventory")
+    mean_tall = np.mean(tall) if n > 0 else 0.0
+    tstar = 0.81 * (1 - 0.667 * np.tanh(10 * np.abs(mean_tall)))
+
+    # TN
+    ncm1_z = (tstar + np.sum(tall)) / (n + 1)
+    ncm2_z = (tstar**2 + np.sum(tall**2)) / (n + 1)
+    ncm3_z = (tstar**3 + np.sum(tall**3)) / (n + 1)
+
+    # RN
+    ncm1_e = (n + 1) / (N + 2)
+    ncm2_e = ncm1_e * (n + 2) / (N + 3)
+    ncm3_e = ncm2_e * (n + 3) / (N + 4)
+
+    # UN
+    ncm1_t = ncm1_e * ncm1_z
+
+    ncm2_t = (
+        ncm1_e * ncm2_z
+        + (N - 1) * ncm2_e * ncm1_z**2
+    ) / N
+
+    ncm3_t = (
+        ncm1_e * ncm3_z
+        + 3 * (N - 1) * ncm2_e * ncm1_z * ncm2_z
+        + (N - 1) * (N - 2) * ncm3_e * ncm1_z**3
+    ) / N**2
+
+    # UC
+    cm2_t = ncm2_t - ncm1_t**2
+    cm3_t = (
+        ncm3_t
+        - 3 * ncm1_t * ncm2_t
+        + 2 * ncm1_t**3
+    )
+
+    # A, B, G
+    A = 4 * cm2_t**3 / cm3_t**2
+    B = 0.5 * cm3_t / cm2_t
+    G = ncm1_t - 2 * cm2_t**2 / cm3_t
+
+    # One-sided upper confidence bound
+    Z = norm.ppf(cl)
+
+    ULE = G + A * B * (
+        1
+        + Z / np.sqrt(9 * A)
+        - 1 / (9 * A)
+    )**3
+
+    # transform into monetary value
+    ULE = EEe + ULE * BVs
+
+    SE = ULE - EE
+
+    return SE, "", ULE
+
+
+def precision_moment_bound_jfa_accounts(sample_s: pd.DataFrame,
+                           EE: float,
+                           BVs: float,
+                           cl: float,
+                           EEe: float,
+                           ):
+    """
+    Moment bound, m.type="accounts" variant from jfa's .moment() (R/methods.R,
+    koenderks/jfa). Identical Cornish-Fisher machinery to
+    precision_moment_bound_jfa_inventory (jfa's m.type="inventory"); the only
+    difference is the hypothetical-tainting term tstar, which includes the
+    (1 + 0.667*tanh(n/10)) factor and uses mean(tall) (not abs()) -- unlike
+    "inventory", this lets tstar grow past 1 (a physically impossible taint)
+    as the number of errors grows. Matches jfa in not special-casing zero
+    errors: tstar falls back to 0.81*(1-0.667*tanh(0))*(1+0.667*tanh(0)) =
+    0.81 and the same formula runs through unchanged, rather than
+    substituting a different bound entirely.
+    """
+
+    taints = np.asarray(sample_s['ER'], dtype=float)
+
+    # Total number of observations
+    N = len(taints)
+
+    # Non-zero taintings
+    tall = taints[taints != 0]
+    n = len(tall)
+
+    # Hypothetical tainting (jfa m.type="accounts")
+    mean_tall = np.mean(tall) if n > 0 else 0.0
+    tstar = 0.81 * (1 - 0.667 * np.tanh(10 * mean_tall)) * (1 + 0.667 * np.tanh(n / 10))
+
+    # TN
+    ncm1_z = (tstar + np.sum(tall)) / (n + 1)
+    ncm2_z = (tstar**2 + np.sum(tall**2)) / (n + 1)
+    ncm3_z = (tstar**3 + np.sum(tall**3)) / (n + 1)
+
+    # RN
+    ncm1_e = (n + 1) / (N + 2)
+    ncm2_e = ncm1_e * (n + 2) / (N + 3)
+    ncm3_e = ncm2_e * (n + 3) / (N + 4)
+
+    # UN
+    ncm1_t = ncm1_e * ncm1_z
+
+    ncm2_t = (
+        ncm1_e * ncm2_z
+        + (N - 1) * ncm2_e * ncm1_z**2
+    ) / N
+
+    ncm3_t = (
+        ncm1_e * ncm3_z
+        + 3 * (N - 1) * ncm2_e * ncm1_z * ncm2_z
+        + (N - 1) * (N - 2) * ncm3_e * ncm1_z**3
+    ) / N**2
+
+    # UC
+    cm2_t = ncm2_t - ncm1_t**2
+    cm3_t = (
+        ncm3_t
+        - 3 * ncm1_t * ncm2_t
+        + 2 * ncm1_t**3
+    )
+
+    # A, B, G
+    A = 4 * cm2_t**3 / cm3_t**2
+    B = 0.5 * cm3_t / cm2_t
+    G = ncm1_t - 2 * cm2_t**2 / cm3_t
+
+    # One-sided upper confidence bound
+    Z = norm.ppf(cl)
+
+    ULE = G + A * B * (
+        1
+        + Z / np.sqrt(9 * A)
+        - 1 / (9 * A)
+    )**3
+
+    # transform into monetary value
+    ULE = EEe + ULE * BVs
+
+    SE = ULE - EE
+
+    return SE, "", ULE
+
 def precision_estimator(bound_estimator, **kwargs):
     estimators = {
         "HH": precision_HH,
@@ -250,6 +416,8 @@ def precision_estimator(bound_estimator, **kwargs):
         "Poisson_Stringer": precision_poisson_stringer,
         "Binomial_Stringer": precision_binomial_stringer,
         "Moment": precision_moment_bound,
+        "Moment_jfa_inventory": precision_moment_bound_jfa_inventory,
+        "Moment_jfa_accounts": precision_moment_bound_jfa_accounts,
     }
 
     try:

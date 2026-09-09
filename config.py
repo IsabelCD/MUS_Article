@@ -43,7 +43,7 @@ SIMULATION_SETTINGS = {
             "method": "MUS",
             "hv_selection": "nothing",
             "selection_type": "systematic_sampling",
-            "bound_estimator": "Moment",
+            "bound_estimator": "Moment_jfa_inventory",
         },
         {
             "method": "MUS",

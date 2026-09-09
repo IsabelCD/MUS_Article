@@ -135,7 +135,7 @@ class Simulation:
                                                                TE=self.TE,
                                                                std=ratio_EQ_std,
                                                                AE=anticipated_error*self.EE)
-                        sample_size = self._apply_min_sample_size(sample_size)
+                    sample_size = self._apply_min_sample_size(sample_size)
                     config["sample_size"] = sample_size
 
                     reason = self._infeasible_reason(config["bound_estimator"], config["hv_selection"],
