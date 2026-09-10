@@ -113,6 +113,7 @@ def precision_HH(sample_s: pd.DataFrame,
     sr = np.std(sample_s['E/BV'], ddof=1) 
     SE_main = z_score * sr * BVs / np.sqrt(ns)
 
+    #usar regra de recurso até k=0
     # alternative bound
     basic_rf = sample_s.shape[0] * beta_dist.ppf(q=cl, a=1, b=sample_s.shape[0],)
     SE_spec = SI * basic_rf # This is equal to BP
@@ -123,9 +124,9 @@ def precision_HH(sample_s: pd.DataFrame,
 
     # Save the one that is highest, and update the SE accordingly. 
     # This is the one that will be used for coverage and acceptance rate calculations.
-    ULE = max(ULE_main, ULE_spec)
-    ULE_name = "main" if ULE_main >= ULE_spec else "spec"
-    SE = SE_main if ULE_name == "main" else SE_spec
+    ULE = ULE_main if sr !=0 else ULE_spec
+    #ULE_name = "main" if ULE_main >= ULE_spec else "spec"
+    SE = SE_main if sr !=0 else SE_spec #SE_main if ULE_name == "main" else SE_spec
 
     return SE, ULE_main, ULE 
 
