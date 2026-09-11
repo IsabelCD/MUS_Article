@@ -126,8 +126,8 @@ def precision_HH(sample_s: pd.DataFrame,
     # This is the one that will be used for coverage and acceptance rate calculations.
     # Define k
     k = 0
-    ULE = ULE_main if sample_s['E'].sum() <= k else ULE_spec
-    SE = SE_main if sample_s['E'].sum() <= k else SE_spec
+    ULE = ULE_main if (sample_s["E"] > 0).sum() > k else ULE_spec
+    SE = SE_main if (sample_s["E"] > 0).sum() > k else SE_spec
 
     #ULE = max(ULE_main, ULE_spec)
     #ULE_name = "main" if ULE_main >= ULE_spec else "spec"

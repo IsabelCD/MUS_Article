@@ -238,7 +238,7 @@ class Simulation:
             "Sample Min": it_results["sample_min"].min(),
             "Sample Max": it_results["sample_max"].max(),
             "Skew": skew,
-            "Rate rule applied": rate_rule_applied,
+            "Rate rule applied": rate_rule_applied if config_info["bound_estimator"] == "HH" else None,
             "Coverage (rule applied)": coverage_rule_applied if config_info["bound_estimator"] == "HH" else None,
             "Coverage (rule NOT applied)": coverage_rule_not_applied if config_info["bound_estimator"] == "HH" else None,
             "Rate of Acceptance (rule applied)": acceptance_rule_applied if config_info["bound_estimator"] == "HH" else None,
