@@ -124,10 +124,10 @@ def precision_HH(sample_s: pd.DataFrame,
 
     # Save the one that is highest, and update the SE accordingly. 
     # This is the one that will be used for coverage and acceptance rate calculations.
-    #ULE = ULE_main if sr !=0 else ULE_spec
-    ULE = max(ULE_main, ULE_spec)
-    ULE_name = "main" if ULE_main >= ULE_spec else "spec"
-    SE = SE_main if ULE_name == "main" else SE_spec #SE_main if sr !=0 else SE_spec
+    ULE = ULE_main if sr !=0 else ULE_spec
+    #ULE = max(ULE_main, ULE_spec)
+    #ULE_name = "main" if ULE_main >= ULE_spec else "spec"
+    SE = SE_main if sr !=0 else SE_spec #SE_main if ULE_name == "main" else SE_spec
 
     return SE, ULE_main, ULE 
 
