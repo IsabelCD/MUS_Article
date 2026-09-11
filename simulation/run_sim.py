@@ -103,11 +103,9 @@ class Simulation:
         all_metrics = []
 
         validation_NAs(self.population)
-        nr_configs = len(self.simulation_configs)
         combination_idx = 0
 
         for base_config in self.simulation_configs:
-            #print(f"Starting configuration {combination_idx+1}/{nr_configs}")
             config = base_config.copy()
 
             for sample_size, cl in product(self.sample_sizes, self.confidence_levels):
@@ -201,9 +199,17 @@ class Simulation:
         ER_true = self.EE / BV_true
 
         if config_info["bound_estimator"] == "HH":
-            UB = np.where(it_results["number_errors"] != 0, it_results["ULE_HH"], 0)
-            coverage_original = sum(UB >= self.EE) / self.iterations
-            rate_of_acceptance_original = sum(UB <= self.TE) / self.iterations
+            aux = np.where(it_results["number_errors"] != 0, it_results["ULE_pred"], 0)
+
+            applied = aux[aux['ULE_pred'] != aux['ULE_HH']]
+            not_applied = aux[aux['ULE_pred'] == aux['ULE_HH']]
+
+            rate_rule_applied = len(applied) / self.iterations
+
+            coverage_rule_applied = sum(applied['ULE_pred']>=self.EE)/len(applied) if len(applied) else float("nan")
+            coverage_rule_not_applied = sum(not_applied['ULE_pred']>=self.EE)/len(not_applied) if len(not_applied) else float("nan")
+            acceptance_rule_applied = sum(applied["ULE_pred"] <= self.TE) / len(applied) if len(applied) else float("nan")
+            acceptance_rule_not_applied = sum(not_applied["ULE_pred"] <= self.TE) / len(not_applied) if len(not_applied) else float("nan")
 
 
         return {"Population ID": self.population_ID, 
@@ -232,8 +238,11 @@ class Simulation:
             "Sample Min": it_results["sample_min"].min(),
             "Sample Max": it_results["sample_max"].max(),
             "Skew": skew,
-            "Coverage (HH Original)": coverage_original if config_info["bound_estimator"] == "HH" else None,
-            "Rate of Acceptance (HH Original)": rate_of_acceptance_original if config_info["bound_estimator"] == "HH" else None
+            "Rate rule applied": rate_rule_applied,
+            "Coverage (rule applied)": coverage_rule_applied if config_info["bound_estimator"] == "HH" else None,
+            "Coverage (rule NOT applied)": coverage_rule_not_applied if config_info["bound_estimator"] == "HH" else None,
+            "Rate of Acceptance (rule applied)": acceptance_rule_applied if config_info["bound_estimator"] == "HH" else None,
+            "Rate of Acceptance (rule NOT applied)": acceptance_rule_not_applied if config_info["bound_estimator"] == "HH" else None
             }
             
 

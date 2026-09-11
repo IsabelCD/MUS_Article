@@ -134,9 +134,11 @@ class Sample:
 
         #Update sample information
         self.real_n = self.sample.shape[0]
-        self.ns = self.real_n - int((self.population["HV"] == 1).sum()) 
-        self.BVs = self.population[self.population["HV"] != 1]["BV"].sum()
-        self.sample['HV'] = np.where(self.sample['BV']>self.SI, 1, self.sample['HV'])         #TODO: see for no HV separation if ns and BVs is updated, rn it is not
+        
+        if self.hv_selection != "iterative":
+            self.ns = self.real_n - int((self.population["HV"] == 1).sum()) 
+            self.BVs = self.population[self.population["HV"] != 1]["BV"].sum()
+            self.sample['HV'] = np.where(self.sample['BV']>self.SI, 1, self.sample['HV'])         #TODO: see for no HV separation if ns and BVs is updated, rn it is not
 
 
     
