@@ -199,10 +199,12 @@ class Simulation:
         ER_true = self.EE / BV_true
 
         if config_info["bound_estimator"] == "HH":
-            aux = np.where(it_results["number_errors"] != 0, it_results["ULE_pred"], 0)
+            # for k>0
+            #aux = it_results.copy()
+            #aux['ULE_pred'] = np.where(it_results["number_errors"] != 0, it_results["ULE_pred"], 0)
 
-            applied = aux[aux['ULE_pred'] != aux['ULE_HH']]
-            not_applied = aux[aux['ULE_pred'] == aux['ULE_HH']]
+            applied = it_results[it_results['ULE_pred'] != it_results['ULE_HH']]
+            not_applied = it_results[it_results['ULE_pred'] == it_results['ULE_HH']]
 
             rate_rule_applied = len(applied) / self.iterations
 
