@@ -302,9 +302,15 @@ class Simulation:
         ER_true = self.EE / BV_true
 
         if config["bound_estimator"] == "HH":
-            UB = np.where(it_results["number_errors"] != 0, it_results["ULE_HH"], 0)
-            coverage_original = sum(UB >= self.EE) / self.iterations
-            rate_of_acceptance_original = sum(UB <= self.TE) / self.iterations
+            applied = it_results[it_results['ULE_pred'] != it_results['ULE_HH']]
+            not_applied = it_results[it_results['ULE_pred'] == it_results['ULE_HH']]
+
+            rate_rule_applied = len(applied) / self.iterations
+
+            coverage_rule_applied = sum(applied['ULE_pred']>=self.EE)/len(applied) if len(applied) else float("nan")
+            coverage_rule_not_applied = sum(not_applied['ULE_pred']>=self.EE)/len(not_applied) if len(not_applied) else float("nan")
+            acceptance_rule_applied = sum(applied["ULE_pred"] <= self.TE) / len(applied) if len(applied) else float("nan")
+            acceptance_rule_not_applied = sum(not_applied["ULE_pred"] <= self.TE) / len(not_applied) if len(not_applied) else float("nan")
 
         return {"Population ID": self.population_ID,
             "Population Book Value": BV_true,
@@ -313,6 +319,7 @@ class Simulation:
             "Average Error Estimation": it_results["EE_pred"].mean(), 
             "STD of Error Estimation": it_results["EE_pred"].std(ddof=1),
             "Precision of Error Estimation": SE_true,
+            'Precision of Error Estimation in % of BV': SE_true / BV_true,
             "Average Precision Estimation": it_results["SE_pred"].mean(),
             "Coverage": coverage,
             "Inconclusive": inconclusive,
@@ -321,8 +328,15 @@ class Simulation:
             "Rate of Rejection": rate_of_rejection,
             "Average Error Estimation": it_results["EE_pred"].mean(),
             "Average Precision Estimation": it_results["SE_pred"].mean(),
-            "Coverage (HH Original)": coverage_original if config["bound_estimator"] == "HH" else None,
-            "Rate of Acceptance (HH Original)": rate_of_acceptance_original if config["bound_estimator"] == "HH" else None,
+            "Sample STD Dev": it_results["sample_std_dev"].mean(),
+            "Sample Mean": it_results["sample_mean"].mean(),
+            "Sample Min": it_results["sample_min"].min(),
+            "Sample Max": it_results["sample_max"].max(),
+            "Rate rule applied": rate_rule_applied if config["bound_estimator"] == "HH" else None,
+            "Coverage (rule applied)": coverage_rule_applied if config["bound_estimator"] == "HH" else None,
+            "Coverage (rule NOT applied)": coverage_rule_not_applied if config["bound_estimator"] == "HH" else None,
+            "Rate of Acceptance (rule applied)": acceptance_rule_applied if config["bound_estimator"] == "HH" else None,
+            "Rate of Acceptance (rule NOT applied)": acceptance_rule_not_applied if config["bound_estimator"] == "HH" else None,
             "obs": None,
             }
 
