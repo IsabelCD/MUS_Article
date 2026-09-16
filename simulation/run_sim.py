@@ -234,7 +234,7 @@ class Simulation:
             "Samples without Errors": samples_without_errors,
             "Needed n": needed_n,
             "Formula n": formula_n,
-            "Sample size STD Dev": it_results["real_n"].mean(),
+            "Sample size STD Dev": it_results["real_n"].std(ddof=1),
             "Sample size Mean": it_results["real_n"].mean(),
             "Sample size Min": it_results["real_n"].min(),
             "Sample size Max": it_results["real_n"].max(),
