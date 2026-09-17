@@ -23,7 +23,7 @@ POPULATION_CONFIGS  = {
 SIMULATION_SETTINGS = {
     "sample_sizes": [30, 65, 100, 150, 200],
     "CL": [0.80, 0.90, 0.95],
-    "iterations": 10_000,
+    "iterations": 5_000,
     "seed": 120,
     "TE_perc": 0.02,
     "configurations": [

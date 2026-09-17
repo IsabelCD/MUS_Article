@@ -207,9 +207,13 @@ class Simulation:
             not_applied = it_results[it_results['ULE_pred'] == it_results['ULE_HH']]
 
             rate_rule_applied = len(applied) / self.iterations
-
+            
             coverage_rule_applied = sum(applied['ULE_pred']>=self.EE)/len(applied) if len(applied) else float("nan")
             coverage_rule_not_applied = sum(not_applied['ULE_pred']>=self.EE)/len(not_applied) if len(not_applied) else float("nan")
+
+            inconclusive_rule_applied = sum((applied['ULE_pred'] > self.TE) & (applied['EE_pred'] < self.TE)) / len(applied) if len(applied) else float("nan")
+            inconclusive_rule_not_applied = sum((not_applied['ULE_pred'] > self.TE) & (not_applied['EE_pred'] < self.TE)) / len(not_applied) if len(not_applied) else float("nan")
+
             acceptance_rule_applied = sum(applied["ULE_pred"] <= self.TE) / len(applied) if len(applied) else float("nan")
             acceptance_rule_not_applied = sum(not_applied["ULE_pred"] <= self.TE) / len(not_applied) if len(not_applied) else float("nan")
 
@@ -232,6 +236,13 @@ class Simulation:
             "Rate of Acceptance": rate_of_acceptance,
             "Rate of Rejection": rate_of_rejection,
             "Samples without Errors": samples_without_errors,
+            "Average number of Errors": it_results["number_errors"].mean(),
+            "Average number of Errors (rule NOT applied)": not_applied["number_errors"].mean() if config_info["bound_estimator"] == "HH" else None,
+            "STD number of Errors": it_results["number_errors"].std(ddof=1),
+            "Proportion of items with errors in sample": (it_results["number_errors"]/it_results["real_n"]).mean(),
+            "Proportion of items with errors in sample (rule NOT applied)": (not_applied["number_errors"]/not_applied["real_n"]).mean() if config_info["bound_estimator"] == "HH" else None,
+            "High values with error": it_results["HV_error_freq"].mean(),
+            "High values error amount": it_results["HV_error_amount"].mean(),
             "Needed n": needed_n,
             "Formula n": formula_n,
             "Sample size STD Dev": it_results["real_n"].std(ddof=1),
@@ -242,6 +253,8 @@ class Simulation:
             "Rate rule applied": rate_rule_applied if config_info["bound_estimator"] == "HH" else None,
             "Coverage (rule applied)": coverage_rule_applied if config_info["bound_estimator"] == "HH" else None,
             "Coverage (rule NOT applied)": coverage_rule_not_applied if config_info["bound_estimator"] == "HH" else None,
+            "Inconclusive below TE (rule applied)": inconclusive_rule_applied if config_info["bound_estimator"] == "HH" else None,
+            "Inconclusive below TE (rule NOT applied)": inconclusive_rule_not_applied if config_info["bound_estimator"] == "HH" else None,
             "Rate of Acceptance (rule applied)": acceptance_rule_applied if config_info["bound_estimator"] == "HH" else None,
             "Rate of Acceptance (rule NOT applied)": acceptance_rule_not_applied if config_info["bound_estimator"] == "HH" else None
             }

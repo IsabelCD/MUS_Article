@@ -45,6 +45,7 @@ def iterative_hv_selection(population: pd.DataFrame, BV: float, n: int) -> pd.Da
             old_n_hvs = n_hvs
             n_hvs = (population["HV"] == 1).sum()
 
+    population["HV"] = np.where(population["HV"]==1, 1, 0)
     return population
 
 
