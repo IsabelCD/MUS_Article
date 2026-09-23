@@ -15,16 +15,15 @@ def aggregate_metrics(metrics_df: pd.DataFrame, analysis: str = "main", TE_perc:
     - dict[str, pd.DataFrame]: one aggregated table per grouping column, keyed by column name.
     """
 
-    # Get rates of Correct/Incorrect acceptance and rejection based on materiality
-    metrics_df["Correct Acceptance"] = np.where(metrics_df["Population Error Rate"] <= TE_perc, metrics_df["Rate of Acceptance"], np.nan)
-    metrics_df["Incorrect Rejection"] = np.where(metrics_df["Population Error Rate"] <= TE_perc, metrics_df["Rate of Rejection"], np.nan)
-    metrics_df["Incorrect Acceptance"] = np.where(metrics_df["Population Error Rate"] > TE_perc, metrics_df["Rate of Acceptance"], np.nan)
-    metrics_df["Correct Rejection"] = np.where(metrics_df["Population Error Rate"] > TE_perc, metrics_df["Rate of Rejection"], np.nan)
-
     # Define the columns to group by
     group_cols = ["BV_pop", "f_target", "corr_target", "r_target", "confidence_level","sample_size"]
 
     if analysis =="main":
+        # Get rates of Correct/Incorrect acceptance and rejection based on materiality
+        metrics_df["Correct Acceptance"] = np.where(metrics_df["Population Error Rate"] <= TE_perc, metrics_df["Rate of Acceptance"], np.nan)
+        metrics_df["Incorrect Rejection"] = np.where(metrics_df["Population Error Rate"] <= TE_perc, metrics_df["Rate of Rejection"], np.nan)
+        metrics_df["Incorrect Acceptance"] = np.where(metrics_df["Population Error Rate"] > TE_perc, metrics_df["Rate of Acceptance"], np.nan)
+        metrics_df["Correct Rejection"] = np.where(metrics_df["Population Error Rate"] > TE_perc, metrics_df["Rate of Rejection"], np.nan)
         # Calculate the relative/% version of the metrics
         metrics_df["Relative Bias of Error Estimation"] = metrics_df["Bias of Error Estimation"] / metrics_df["Average Error Estimation"]
         metrics_df["Relative Precision of Error Estimation"] = metrics_df["Precision of Error Estimation"] / metrics_df["Average Error Estimation"]
