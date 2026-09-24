@@ -87,7 +87,7 @@ R_LEVELS = POPULATION_CONFIGS["r_target"]  # error rate levels (% of total BV)
 
 CORR_TOLERANCE = 0.05 # flag a combo if achieved corr misses target by more than this
                       # (this can happen even when the TOTAL is feasible - see note below)
-MAX_CORR_RETRIES = 500 # if a random draw misses CORR_TOLERANCE, retry with a fresh draw
+MAX_CORR_RETRIES = 1000 # if a random draw misses CORR_TOLERANCE, retry with a fresh draw
                       # up to this many times before giving up and alerting
 # ==========================================================================
 

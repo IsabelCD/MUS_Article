@@ -210,10 +210,12 @@ class Sample:
             "SE_pred": self.SE,
             "ULE_pred": self.ULE,
             "real_n": self.real_n, 
+            "HV_error_freq": (self.sample[self.sample['HV']==1]["E"] > 0).sum(),
+            "HV_error_amount": self.sample[self.sample['HV']==1]['E'].sum(),
             "number_errors": self.number_errors,
-            "sample_std_dev": self.sample_s["E"].std(ddof=1),
-            "sample_mean": self.sample_s["E"].mean(),
-            "sample_min": self.sample_s["E"].min(),
-            "sample_max": self.sample_s["E"].max(),
+            # "sample_std_dev": self.sample_s["E"].std(ddof=1),
+            # "sample_mean": self.sample_s["E"].mean(),
+            # "sample_min": self.sample_s["E"].min(),
+            # "sample_max": self.sample_s["E"].max(),
             "ULE_HH": self.ULE_HH
         }

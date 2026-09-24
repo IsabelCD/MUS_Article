@@ -2,7 +2,10 @@
 
 This project studies monetary unit sampling (MUS) audit precision through
 Monte Carlo simulation, using synthetic audit populations with injected
-errors of known frequency, correlation, and total rate.
+errors of known frequency, correlation, and total rate. It compares seven
+precision/bound estimators (Hansen-Hurwitz and its modified variant, the
+Poisson and Binomial Stringer bounds, and three Cornish-Fisher moment-bound
+variants) under one shared sampling and error-projection pipeline.
 
 ## Project structure
 
@@ -26,14 +29,14 @@ errors of known frequency, correlation, and total rate.
 |   |-- sample.py                    Operations for one sample draw
 |   |-- precision_estimation.py      Precision/bound estimators
 |   |-- sample_size_calculation.py   Analytical sample-size formulas
-|   |-- validations.py               Optional validation helpers (not wired
-|   |                                 into the simulation loop; see below)
+|   |-- validations.py               Validation helpers (available for ad-hoc
+|   |                                 use; see [Validation](#validation))
 |   |-- run_sim.py                   Monte Carlo orchestration for main.py
 |   |-- sample_planning_analysis.py  Monte Carlo orchestration for
 |   |                                 run_sensitivity_analysis.py
 |   `-- aggregate_metrics.py         Aggregates metrics across population
 |                                     configurations
-|-- testing/                         Exploratory notebooks (manual, not automated)
+|-- testing/                         Diagnostic and reporting notebooks (manual)
 `-- results/                         Generated simulation workbooks
 ```
 
@@ -105,7 +108,11 @@ Populations are synthetic, built from a real book-value column in three steps:
 `config.py` defines:
 
 - `POPULATION_CONFIGS`: the grid of `BV_pop` / `f_target` / `corr_target` /
-  `r_target` values that both entry points iterate over.
+  `r_target` values. `main.py` iterates over the full grid;
+  `run_sensitivity_analysis.py` iterates over the same `BV_pop` /
+  `f_target` / `corr_target` values but narrows `r_target` to
+  `[0.002, 0.01]` (the values below the 2% materiality threshold used for
+  sample-size planning).
 - `SIMULATION_SETTINGS`: passed to `simulation.run_sim.Simulation` (used by
   `main.py`). Shape:
 
@@ -119,8 +126,10 @@ SIMULATION_SETTINGS = {
     "configurations": [
         {"method": "MUS", "hv_selection": "nothing",   "selection_type": "systematic_sampling", "bound_estimator": "Poisson_Stringer"},
         {"method": "MUS", "hv_selection": "nothing",   "selection_type": "systematic_sampling", "bound_estimator": "Binomial_Stringer"},
-        {"method": "MUS", "hv_selection": "nothing",   "selection_type": "systematic_sampling", "bound_estimator": "Moment"},
+        {"method": "MUS", "hv_selection": "nothing",   "selection_type": "systematic_sampling", "bound_estimator": "Moment_jfa_inventory"},
         {"method": "MUS", "hv_selection": "iterative", "selection_type": "systematic_sampling", "bound_estimator": "HH"},
+        # Mod_HH is implemented (see Estimator status) but left out of the
+        # active grid here; uncomment to include it in a run.
     ],
 }
 ```
@@ -132,7 +141,15 @@ SIMULATION_SETTINGS = {
   using an anticipated-error and anticipated-std percentage of the true
   values (`anticipated_errors`, `anticipated_stds`,
   `sample_size_combinations`), so this settings dict evaluates how sample
-  planning behaves as those anticipations deviate from the truth.
+  planning behaves as those anticipations deviate from the truth. Only
+  bound estimators with an analytical sample-size formula (`HH`,
+  `Poisson_Stringer`, `Binomial_Stringer`) can appear in its
+  `configurations` list, since the formula is what picks each run's `n`.
+  When a formula-derived sample size is not usable — infeasible (e.g.
+  Poisson_Stringer's `TE <= AE * EF`) or at/above the population size —
+  `Simulation` records the reason in that row's `obs` column instead of
+  running it (see `_infeasible_reason` / `_infeasible_metrics_row` in
+  `sample_planning_analysis.py`).
 
 ### Configuration fields
 
@@ -141,7 +158,7 @@ SIMULATION_SETTINGS = {
 | `method` | `MUS` | Defines the measure of size `Q` (only MUS is exercised currently) |
 | `hv_selection` | `nothing`, `iterative` | Controls advance separation of certainty/high-value units |
 | `selection_type` | `systematic_sampling`, `python` | Selects the PPS drawing implementation |
-| `bound_estimator` | `HH`, `Mod_HH`, `Poisson_Stringer`, `Binomial_Stringer`, `Moment` | Selects the precision estimator (see [Estimator status](#estimator-status)) |
+| `bound_estimator` | `HH`, `Mod_HH`, `Poisson_Stringer`, `Binomial_Stringer`, `Moment`, `Moment_jfa_inventory`, `Moment_jfa_accounts` | Selects the precision estimator (see [Estimator status](#estimator-status)) |
 
 `CL` is a *list* of confidence levels; every sample size (or anticipated-error
 combination) is run once per entry in `CL`, and the normal critical value is
@@ -155,14 +172,25 @@ combination) is run once per entry in `CL`, and the normal critical value is
 python main.py
 ```
 
-For every combination in `POPULATION_CONFIGS`, `main.py`:
+`main.py` loads every population in `POPULATION_CONFIGS` up front in the
+parent process (so worker processes never touch the source workbook, and
+`import_population`'s cache is reused across populations that share a
+`BV_pop` sheet), then runs one population per worker via
+`ProcessPoolExecutor` (defaults to all logical cores; pass
+`main(max_workers=N)` to limit it). For each population, its worker:
 
-1. Loads the corresponding population via `import_population`.
-2. Runs `simulation.run_sim.Simulation` over every `(sample_size, CL,
+1. Runs `simulation.run_sim.Simulation` over every `(sample_size, CL,
    configuration)` combination in `SIMULATION_SETTINGS`, for `iterations`
    Monte Carlo draws each.
-3. Exports one workbook per population to
+2. Exports that population's own workbook to
    `results/results_<population_ID>.xlsx` via `Simulation.export()`.
+
+`testing/export_main.ipynb` then concatenates every `results/results_*.xlsx`
+file's `metrics` sheet, derives `BV_pop` / `f_target` / `corr_target` /
+`r_target` back out of the `Population ID` string, adds the relative/percent
+metrics also produced by `simulation/aggregate_metrics.py`, and writes the
+combined report (`metrics` plus one `agg_<column>` sheet per grouping column)
+used for cross-population analysis.
 
 ### Sample-size planning sensitivity analysis
 
@@ -170,12 +198,17 @@ For every combination in `POPULATION_CONFIGS`, `main.py`:
 python run_sensitivity_analysis.py
 ```
 
-For every combination in `POPULATION_CONFIGS`, this script runs
-`simulation.sample_planning_analysis.Simulation` over
-`SAMPLE_PLANNING_SIMULATION_SETTINGS`, collects metrics across all
-populations, and writes a single combined workbook to
-`results/sensitivity_analysis_results.xlsx` with `metrics` and
-`aggregate_metrics` sheets (via `simulation/aggregate_metrics.py`).
+Structured the same way as `main.py` (populations loaded once in the parent
+process, one `ProcessPoolExecutor` worker per population), but each worker
+runs `simulation.sample_planning_analysis.Simulation` over
+`SAMPLE_PLANNING_SIMULATION_SETTINGS` for its one population and returns that
+population's metrics rather than writing its own file. The parent process
+concatenates every population's metrics and writes a single combined
+workbook to `results/sensitivity_analysis_results.xlsx`, with a `metrics`
+sheet and one `agg_<column>` sheet per grouping column (`BV_pop`,
+`f_target`, `corr_target`, `r_target`, `confidence_level`, `sample_size`) —
+this aggregation step is built into the script itself, unlike `main.py`'s
+combined report, which is produced separately by `export_main.ipynb`.
 
 For a smaller verification run, reduce `iterations` and the size of the
 relevant lists in `config.py` before starting a full experiment.
@@ -191,14 +224,33 @@ relevant lists in `config.py` before starting a full experiment.
 | `descriptive statistics (€)` | Descriptive statistics grouped by configuration |
 | `metrics` | Bias, precision, coverage, inconclusiveness, sample-size, and skew metrics |
 
-Iteration-level output includes:
+Iteration-level output (`Sample.get_results()`, one row per Monte Carlo draw)
+includes:
 
 - `EE_pred`: estimated population error;
-- `SE_pred`: estimated precision or bound;
-- `VAR_pred`: estimated variance;
-- `ULE_pred`: upper error limit;
-- `real_n`: real sample size;
-- `number_errors`: number of erroneous items drawn.
+- `SE_pred`: estimated precision (the value actually used for `ULE_pred`);
+- `ULE_pred`: upper error limit (`EE_pred + SE_pred`, except where a
+  zero-error rescue rule substitutes a different `EE`/`SE` pair — see
+  [Precision estimators](#precision-estimators));
+- `ULE_HH`: the upper limit from the estimator's main (non-rescued) formula
+  alone, for every bound estimator — reported regardless of whether the
+  rescue rule fired, so `ULE_pred == ULE_HH` identifies iterations where it
+  did not;
+- `real_n`: realised sample size (systematic PPS selection can deduplicate
+  to slightly below the intended `sample_size`);
+- `number_errors`: number of erroneous items drawn into the non-certainty
+  stratum;
+- `sample_std_dev`, `sample_mean`, `sample_min`, `sample_max`: descriptive
+  statistics of `E` within the non-certainty sample.
+
+The `metrics` sheet (one row per `(sample_size or anticipated-error, CL,
+configuration)` combination) aggregates these across all iterations of that
+combination: bias, precision, coverage, inconclusiveness, sample-size
+formula comparisons, and skew. For `HH`, it additionally splits `Coverage`
+and `Rate of Acceptance` by whether the zero-error rescue rule fired
+(`Coverage (rule applied)` / `Coverage (rule NOT applied)`, and the `Rate of
+Acceptance` equivalents), alongside `Rate rule applied` (the fraction of
+iterations where it did).
 
 ### Coverage definition
 
@@ -213,76 +265,80 @@ coverage = proportion of iterations where ULE_pred >= true population error
 | Estimator | Status |
 |---|---|
 | `HH` | Implemented (precision + analytical sample size) |
-| `Mod_HH` | Precision implemented; commented out of `SIMULATION_SETTINGS` pending review of the book-value correction factor described below |
+| `Mod_HH` | Implemented (precision only); not included in the active `SIMULATION_SETTINGS` grid in `config.py`, but usable by uncommenting its entry there |
 | `Poisson_Stringer` | Implemented (precision + analytical sample size) |
-| `Binomial_Stringer` | Implemented (precision only; no analytical sample-size formula yet) |
-| `Moment` | Implemented (moment bound, precision only; no analytical sample-size formula yet) |
+| `Binomial_Stringer` | Implemented (precision + analytical sample size) |
+| `Moment` | Implemented (Cornish-Fisher moment bound, precision only; no analytical sample-size formula) |
+| `Moment_jfa_inventory` | Implemented (moment bound, jfa `m.type="inventory"` tail-tainting variant; precision only) |
+| `Moment_jfa_accounts` | Implemented (moment bound, jfa `m.type="accounts"` tail-tainting variant; precision only) |
 
 Selecting an estimator without an analytical sample-size implementation is
 fine for `main.py` (the formula-based `Needed n` / `Formula n` metrics are
 simply `NaN`), but `run_sensitivity_analysis.py` requires one, since it uses
-the formula to *pick* each run's sample size.
+the formula to *pick* each run's sample size — its `configurations` list is
+therefore limited to `HH`, `Poisson_Stringer`, and `Binomial_Stringer`.
 
-## Modified-HH correction factor
+## Precision estimators
 
-`precision_modified_HH` (in `simulation/precision_estimation.py`) reduces
-estimated precision according to the proportion of non-certainty book value
-represented by the sample. Define:
+All bound estimators in `simulation/precision_estimation.py` share the same
+error projection (`Sample.estimate_error`): a certainty-stratum sum `EEe`
+plus a PPS ratio-estimator projection `SI * Σ(E/BV)` over the non-certainty
+sample. They differ in how they turn that projection into a precision
+figure (`SE`) and upper limit (`ULE`):
 
-- `sr` as the sample standard deviation of `ER`;
-- `BVs` as total `BV` in the non-certainty population;
-- `ns` as the non-certainty sample size;
-- `Bs` as `sample_s["BV"].sum()`;
-- `z` as the normal critical value.
+- **`HH`** computes a classical variance-based term, `SE_main = z * sr *
+  BVs / sqrt(ns)` (`sr` = sample standard deviation of `E/BV` in the
+  non-certainty stratum), alongside a fixed Binomial-Stringer-style "basic
+  precision" floor, `SE_spec = SI * ns * Beta⁻¹(cl; 1, ns)`. Whenever the
+  non-certainty sample contains at least one error, `SE_main`/`ULE_main` is
+  used; when it contains none, `SE_spec` is used instead (`EE + SE_main`
+  would otherwise collapse to the point estimate itself, since `sr = 0`).
+  `ULE_HH` in the output always reports `EE + SE_main` regardless of which
+  branch was actually used, so it can be compared against `ULE_pred` to
+  identify rescued iterations (see [Output](#output)).
+- **`Mod_HH`** uses the same two terms, but applies a finite-population-style
+  correction to the variance term (`SE_main` scaled by `sqrt((BVs -
+  sample_s["BV"].sum()) / BVs)`) and always compares both branches
+  (`ULE = max(ULE_main, ULE_spec)`), rather than switching purely on whether
+  any error was observed.
+- **`Poisson_Stringer`** and **`Binomial_Stringer`** build `SE` from a basic
+  precision term (`SI` times a Poisson- or Beta-distribution reliability
+  factor) plus an incremental-adjustment sum over the sample's observed
+  taints, ranked and weighted by the respective distribution's quantiles —
+  the classical Stringer-bound construction, independent of any assumed
+  standard deviation.
+- **`Moment`**, **`Moment_jfa_inventory`**, and **`Moment_jfa_accounts`**
+  compute a Cornish-Fisher-expansion upper bound from the sample's taint
+  moments, following the `jfa` R package's `.moment()` method; the three
+  differ only in the hypothetical-tainting term `tstar` used to stabilise
+  the bound when no (or few) errors are observed — see the docstrings in
+  `precision_estimation.py` for the exact `tstar` definitions.
 
-The uncorrected variance is:
+## Validation
 
-```text
-V0 = (BVs * sr)^2 / ns
-```
-
-The correction factor applied by the current `SE` formula is:
-
-```text
-c = sqrt((BVs - Bs) / BVs)
-```
-
-but `VAR` is still returned as the *uncorrected* `V0`, i.e. `SE` and `VAR` are
-not derived from the same quantity (`SE != z * sqrt(VAR)`). This is why
-`Mod_HH` is commented out of `SIMULATION_SETTINGS` in `config.py` — the two
-outputs need to be reconciled (either apply `c**2` to `VAR` too, or drop the
-correction from `SE`) before this estimator is used for real analysis.
-
-## Known limitations
-
-- **`validations.py` is not wired into the simulation loop.** Only
-  `validation_NAs` is actually called (from `run_sim.py` and
-  `sample_planning_analysis.py`); the rest of the module (population schema,
-  configuration compatibility, HV/sample-design checks, etc.) is available
-  for ad-hoc use but does not run automatically.
-- **`config.py`'s `RF_TABLE`** (loaded from `clean_data/reliability
-  factor.xlsx` at import time) is not referenced anywhere in the codebase —
-  the implemented Stringer bounds compute their factors analytically via
-  `scipy.stats.gamma`/`beta` quantiles rather than a lookup table. Every
-  import of `config` still depends on that workbook being present.
-- **Formula-derived sample sizes are not capped against the population
-  size.** `run_sensitivity_analysis.py` picks each run's sample size from
-  `sample_size_calculation.py`. For anticipated-error/std inputs far from a
-  population's actual values, that formula can return an `n` far larger than
-  the population itself; `iterative_hv_selection` then classifies every unit
-  as a certainty unit, leaving no non-certainty units to sample and causing
-  `simulation.selection.systematic_samping` to fail. Sanity-check
-  `anticipated_errors` / `anticipated_stds` against a population's actual
-  error rate and `ratio_EQ_std` before adding it to
-  `SAMPLE_PLANNING_SIMULATION_SETTINGS`.
+`simulation/validations.py` is a standalone library of validation helpers
+(population schema, configuration compatibility, HV/sample-design checks,
+simulation-result invariants, etc.) with no side effects — each function
+raises on the invariant it checks and otherwise returns `None`. Only
+`validation_NAs` is called automatically, from `run_sim.py` and
+`sample_planning_analysis.py`, right after each combination's iteration
+results are assembled; the rest of the module is available for ad-hoc use
+(interactive checks, notebooks) rather than wired into the simulation loop
+itself.
 
 ## Testing
 
-`testing/test_data.ipynb` and `testing/test_simulation.ipynb` are exploratory
-notebooks for manual inspection. They predate the current
-`create_population` / `simulation` module layout (they call functions such as
-`synthetic_population_eu_funds` that no longer exist) and are not runnable
-as-is. There is currently no automated test suite in this checkout.
+`testing/` holds manual, diagnostic, and reporting notebooks rather than an
+automated suite — there is currently no automated test suite in this
+checkout. `export_main.ipynb` combines `main.py`'s per-population output
+into the report described in
+[Running the simulations](#running-the-simulations); the
+`test_hh_special_case*`, `test_moment_vs_stringer.ipynb`, and
+`test_precision.ipynb` notebooks are ad-hoc investigations into individual
+estimators' behaviour, built directly against the current
+`create_population` / `simulation` modules. `test_data.ipynb` predates the
+current module layout (it calls `synthetic_population_eu_funds`, which no
+longer exists) and is not runnable as-is.
 
 ## Research-use note
 

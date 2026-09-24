@@ -110,7 +110,7 @@ class Simulation:
         combination_idx = 0
 
         for base_config in self.simulation_configs:
-            print(f"Starting configuration {combination_idx+1}/{nr_configs}")
+            #print(f"Starting configuration {combination_idx+1}/{nr_configs}")
             config = base_config.copy()
 
             for cl in self.confidence_levels:
@@ -324,14 +324,14 @@ class Simulation:
             "Coverage": coverage,
             "Inconclusive": inconclusive,
             "Samples without Errors": samples_without_errors,
-            "Rate of Acceptance": rate_of_acceptance,
-            "Rate of Rejection": rate_of_rejection,
+            "Correct Acceptance": rate_of_acceptance,
+            "Incorrect Rejection": rate_of_rejection,
             "Average Error Estimation": it_results["EE_pred"].mean(),
             "Average Precision Estimation": it_results["SE_pred"].mean(),
-            "Sample STD Dev": it_results["sample_std_dev"].mean(),
-            "Sample Mean": it_results["sample_mean"].mean(),
-            "Sample Min": it_results["sample_min"].min(),
-            "Sample Max": it_results["sample_max"].max(),
+            "Sample size STD Dev": it_results["real_n"].std(ddof=1),
+            "Sample size Mean": it_results["real_n"].mean(),
+            "Sample size Min": it_results["real_n"].min(),
+            "Sample size Max": it_results["real_n"].max(),
             "Rate rule applied": rate_rule_applied if config["bound_estimator"] == "HH" else None,
             "Coverage (rule applied)": coverage_rule_applied if config["bound_estimator"] == "HH" else None,
             "Coverage (rule NOT applied)": coverage_rule_not_applied if config["bound_estimator"] == "HH" else None,
