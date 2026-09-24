@@ -6,7 +6,7 @@ from config import DATA_DIR
 
 
 @functools.lru_cache(maxsize=None)
-def _load_population_sheet(BV_pop: str) -> pd.DataFrame:
+def _load_population_sheet(BV_pop: str, file: str) -> pd.DataFrame:
     """
     Read one BV_pop sheet from simulated_error_populations.xlsx.
 
@@ -16,12 +16,12 @@ def _load_population_sheet(BV_pop: str) -> pd.DataFrame:
     and re-reading/re-parsing the same ~270k-row sheet from disk on every one
     of those calls (~10s each) would dominate runtime for no reason.
     """
-    data_path = DATA_DIR / 'simulated_error_populations.xlsx'
+    data_path = DATA_DIR / file
     return pd.read_excel(data_path, sheet_name=f"Detail_{BV_pop}")
 
 
-def import_population(BV_pop: str, f_target: float, corr_target: float, r_target: float) -> pd.DataFrame:
-    sheet = _load_population_sheet(BV_pop)
+def import_population(BV_pop: str, f_target: float, corr_target: float, r_target: float, file: str = 'simulated_error_populations.xlsx') -> pd.DataFrame:
+    sheet = _load_population_sheet(BV_pop, file)
 
     mask = (
         (sheet["f_target"] == f_target)

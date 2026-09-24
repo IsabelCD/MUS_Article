@@ -13,10 +13,10 @@ Method, per scenario:
   never touched, in either direction.
 - To RAISE the HV share above its natural level: non-HV items are converted
   to HV one at a time, in random order, each given a random value in
-  (SI, STABLE_CAP]. Conversion stops once the HV share reaches the target;
-  the last item converted is then adjusted to hit the target exactly
-  (unless that would drop it back below SI, in which case the slight
-  overshoot from the random draw is kept instead).
+  (SI, max original BV]. Conversion stops once the HV share reaches the
+  target; the last item converted is then adjusted to hit the target
+  exactly (unless that would drop it back below SI, in which case the
+  slight overshoot from the random draw is kept instead).
 - To LOWER the HV share below its natural level: the single largest
   original HV item is reduced to the exact value that makes the HV share
   hit the target (it may drop out of HV status entirely).
@@ -24,20 +24,6 @@ Method, per scenario:
   (or removed from) converted/reduced items is offset by a proportional
   counter-adjustment across the untouched non-HV pool, so T and
   SI = T / 100 never move.
-
-STABLE_CAP (the "raise" branch's upper bound, `min(max original BV,
-T / STABLE_HV_SAMPLE_SIZE * STABLE_CAP_MARGIN)`) keeps every *engineered*
-HV item below the certainty threshold of the simulation's second-smallest
-sample size (STABLE_HV_SAMPLE_SIZE, currently 65). Certainty status at that
-sample size is then determined only by whichever items are naturally that
-large in the source data, instead of inheriting most of the 100-sample-size
-target's engineered items by chance of the uniform draw -- which previously
-made the certainty stratum jump from empty (n=30, no item in the source
-data is large enough to be certain there at all) to a large chunk of the
-n=100 target's size at n=65, and disproportionately depleted the
-non-certainty stratum's error signal at that sample size as a result. The
-target share at n=100 (and above) is unaffected: those items still need to
-be, and are, above SI(100).
 """
 
 import numpy as np
@@ -48,23 +34,12 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from config import RANDOM_SEED
 from config import DATA_DIR
-from config import SIMULATION_SETTINGS
 from simulation.inclusion_probability import iterative_hv_selection
 
 INPUT_PATH = DATA_DIR / "first_book_value_population.xlsx"
 OUTPUT_PATH = DATA_DIR / "book_value_populations.xlsx"
 VALUE_COL = "BV"  # name of the cost/value column
 HV_SAMPLE_SIZE = 100  # matches SI = T / 100; see module docstring
-
-# Engineered ("raised") HV items are capped below the certainty threshold of
-# this sample size, so that sample size's certainty stratum stays limited to
-# whatever is naturally that large in the source data. Must be strictly
-# smaller than HV_SAMPLE_SIZE (a larger SI) and is otherwise the smallest
-# sample size actually run below HV_SAMPLE_SIZE in SIMULATION_SETTINGS
-# (config.py) for which a naturally-sized certainty stratum is achievable
-# -- see the module docstring.
-STABLE_HV_SAMPLE_SIZE = 65
-STABLE_CAP_MARGIN = 0.995  # keeps capped draws strictly below SI(STABLE_HV_SAMPLE_SIZE)
 
 # target share of the total that HV items should hold, per scenario
 SCENARIOS = {
@@ -105,21 +80,14 @@ def build_scenario(
     si: float,
     orig_hv: np.ndarray,
     rng: np.random.Generator,
-    stable_cap: float | None = None,
 ) -> np.ndarray:
     """
     Return a new values array whose HV share of T equals target_pct.
     `orig_hv` (the original HV mask) is never modified in the "raise" branch
     and is the only eligible source item in the "lower" branch.
-
-    `stable_cap`, when given, caps the "raise" branch's random draw below
-    this value (see STABLE_CAP in the module docstring) so engineered items
-    stay below a tighter sample size's certainty threshold; `None` keeps the
-    original behaviour of drawing up to the largest original BV.
     """
     values = values.copy()
     max_bv = values[orig_hv].max()
-    draw_cap = min(max_bv, stable_cap) if stable_cap is not None else max_bv
 
     current_hv_sum = values[orig_hv].sum()
     target_hv_sum = target_pct * T
@@ -139,7 +107,7 @@ def build_scenario(
             if added >= needed:
                 break
             old_value = values[idx]
-            new_value = rng.uniform(si, draw_cap)
+            new_value = rng.uniform(si, max_bv)
             values[idx] = new_value
             added += new_value - old_value
             converted.append((idx, old_value))
@@ -239,12 +207,10 @@ def main():
 
     T = bv.sum()
     SI = T / 100
-    stable_cap = (T / STABLE_HV_SAMPLE_SIZE) * STABLE_CAP_MARGIN
     orig_hv = hv_mask(bv, T)
 
     print(f"Total (T)          = {T:,.2f}")
     print(f"SI = T / 100       = {SI:,.2f}")
-    print(f"Stable cap (T / {STABLE_HV_SAMPLE_SIZE} * {STABLE_CAP_MARGIN}) = {stable_cap:,.2f}")
     print(f"Original HV items  = {orig_hv.sum()} (sum={bv[orig_hv].sum():,.2f}, "
           f"{bv[orig_hv].sum() / T:.2%} of T)")
     print()
@@ -252,7 +218,7 @@ def main():
     rng = np.random.default_rng(RANDOM_SEED)
 
     for col_name, target_pct in SCENARIOS.items():
-        new_values = build_scenario(bv, target_pct, T, SI, orig_hv, rng, stable_cap=stable_cap)
+        new_values = build_scenario(bv, target_pct, T, SI, orig_hv, rng)
         df[col_name] = new_values
         print(f"{col_name}: target={target_pct:.0%}")
 
@@ -266,16 +232,6 @@ def main():
         untouched_original_hv = np.array_equal(values[orig_hv], bv[orig_hv])
         print(f"  {col_name}: total={total:,.2f}  pct_HV={above / total:.4%}  "
               f"n_HV={mask.sum()}  original_HV_untouched={untouched_original_hv}")
-
-    print("\nCertainty count across the actual sample-size grid (SIMULATION_SETTINGS):")
-    for col_name in SCENARIOS:
-        values = df[col_name].to_numpy(dtype=float)
-        total = values.sum()
-        row = []
-        for n in SIMULATION_SETTINGS["sample_sizes"]:
-            mask_n = (iterative_hv_selection(pd.DataFrame({"BV": values}), BV=total, n=n)["HV"] == 1).to_numpy()
-            row.append(f"n={n}:cert={int(mask_n.sum())},ns={n - int(mask_n.sum())}")
-        print(f"  {col_name}: " + "  ".join(row))
 
     df = df.drop(columns=[VALUE_COL])  # drop the original column as it doesn't belong to the simulation
 

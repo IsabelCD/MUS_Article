@@ -40,7 +40,7 @@ def aggregate_metrics(metrics_df: pd.DataFrame, analysis: str = "main", TE_perc:
                     "Relative Bias of Precision Estimation","Relative Precision of Precision Estimation"]
 
     elif analysis =="sensitivity":
-        value_cols = ["Coverage","Inconclusive", "Samples without Errors","Correct Acceptance","Incorrect Rejection","Incorrect Acceptance","Correct Rejection"]
+        value_cols = ["Coverage","Inconclusive", "Samples without Errors","Correct Acceptance","Incorrect Rejection"]
 
     # One table per grouping column, not one table grouped by their combination
     aggregated_tables = {
