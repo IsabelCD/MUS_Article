@@ -6,8 +6,6 @@ from .inclusion_probability import assign_hv_by_method
 from .selection import select_sample
 from .precision_estimation import precision_estimator
 
-CONSERVATIVE_SAMPLING = ['con_systematic_sampling', 'sequential_list']
-
 class Sample:
     """
     Draws and evaluates one sample from a population for one Monte Carlo
